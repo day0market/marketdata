@@ -25,24 +25,13 @@ func (*errNothingToDownload) Error() string {
 	return "Nothing to download"
 }
 
-type dateRange struct {
-	from time.Time
-	to   time.Time
-}
-
-func (d *dateRange) String() string {
-	l := "2006-01-02 15:04:05"
-	return fmt.Sprintf("From: %v To: %v", d.from.Format(l), d.to.Format(l))
-}
-
 type JsonSymbolMeta struct {
-	Symbol    string
-	TimeFrame string
-
+	Symbol      string
+	TimeFrame   string
 	listedDates map[time.Time]struct{} //Time should be always 0
 }
 
-func (j *JsonSymbolMeta) getEmptyRanges(rng dateRange) ([]*dateRange, error) {
+func (j *JsonSymbolMeta) getEmptyRanges(rng DateRange) ([]*DateRange, error) {
 	last := rng.from
 
 	var emptyDates []time.Time
@@ -68,16 +57,16 @@ func (j *JsonSymbolMeta) getEmptyRanges(rng dateRange) ([]*dateRange, error) {
 	}
 
 	if len(emptyDates) == 1 {
-		rng := dateRange{
+		rng := DateRange{
 			emptyDates[0],
 			emptyDates[0],
 		}
 
-		return []*dateRange{&rng}, nil
+		return []*DateRange{&rng}, nil
 	}
 
 	start, end := emptyDates[0], emptyDates[1]
-	var emptyRanges []*dateRange
+	var emptyRanges []*DateRange
 
 	for i, v := range emptyDates {
 		if i < 2 {
@@ -86,7 +75,7 @@ func (j *JsonSymbolMeta) getEmptyRanges(rng dateRange) ([]*dateRange, error) {
 
 		delta := int(v.Sub(end).Hours() / 24)
 		if delta > 1 {
-			rng := dateRange{start, end}
+			rng := DateRange{start, end}
 			emptyRanges = append(emptyRanges, &rng)
 			start, end = v, v
 			continue
@@ -95,7 +84,7 @@ func (j *JsonSymbolMeta) getEmptyRanges(rng dateRange) ([]*dateRange, error) {
 
 	}
 
-	rngF := dateRange{start, end}
+	rngF := DateRange{start, end}
 	emptyRanges = append(emptyRanges, &rngF)
 
 	return emptyRanges, nil
@@ -130,8 +119,20 @@ func (j *JsonSymbolMeta) lastDate() (time.Time, bool) {
 
 }
 
+func (j *JsonSymbolMeta) Save(savePath string) error {
+	json_, err := json.Marshal(j)
+	if err != nil {
+		return err
+	}
+
+	err = ioutil.WriteFile(savePath, json_, 0644)
+
+	return err
+}
+
 type JsonStorage struct {
-	path string
+	path     string
+	provider HistoryProvider
 }
 
 func (p *JsonStorage) ensureFolders() error {
@@ -154,7 +155,7 @@ func (p *JsonStorage) ensureFolders() error {
 
 }
 
-func (p *JsonStorage) UpdateSymbol(symbol string, tf string, dRange dateRange) error {
+func (p *JsonStorage) UpdateSymbol(symbol string, tf string, dRange DateRange) error {
 	switch tf {
 	case "D":
 		return p.updateDailyCandles(symbol, dRange)
@@ -181,8 +182,9 @@ func (p *JsonStorage) UpdateSymbol(symbol string, tf string, dRange dateRange) e
 
 }
 
-func (p *JsonStorage) updateDailyCandles(s string, dRange dateRange) error {
+func (p *JsonStorage) updateDailyCandles(s string, dRange DateRange) error {
 	metaPath := path.Join(p.path, "candles/day/meta", s+".json")
+	downloadRange := dRange
 
 	if fileExists(metaPath) {
 		symbolMeta, err := p.loadMeta(metaPath)
@@ -190,7 +192,7 @@ func (p *JsonStorage) updateDailyCandles(s string, dRange dateRange) error {
 			return err
 		}
 
-		downloadRange, err := p.findDailyRangeToDownload(dRange, symbolMeta)
+		downloadRange, err = p.findDailyRangeToDownload(dRange, symbolMeta)
 		if err != nil {
 			switch err.(type) {
 			case *errNothingToDownload:
@@ -200,12 +202,37 @@ func (p *JsonStorage) updateDailyCandles(s string, dRange dateRange) error {
 			}
 		}
 
-		fmt.Println(downloadRange)
-
 	}
 
+	candles, err := p.provider.GetCandles(s, "D", downloadRange)
+	if err != nil {
+		return err
+	}
+
+	savePath := path.Join(p.path, "candles/day", s+".json")
+	err = p.saveCandlesToFile(candles, savePath)
+
+	if err != nil {
+		return err
+	}
+
+	newMeta := p.genNewDailySymbolMeta(s, downloadRange)
+	err = newMeta.Save(metaPath)
+	if err != nil {
+		return err
+	}
 	return nil
 
+}
+func (p *JsonStorage) saveCandlesToFile(candles []*Candle, savePath string) error {
+	json_, err := json.Marshal(candles)
+	if err != nil {
+		return err
+	}
+
+	err = ioutil.WriteFile(savePath, json_, 0644)
+
+	return err
 }
 
 func (*JsonStorage) loadMeta(path string) (*JsonSymbolMeta, error) {
@@ -231,7 +258,7 @@ func (*JsonStorage) loadMeta(path string) (*JsonSymbolMeta, error) {
 
 }
 
-func (*JsonStorage) findDailyRangeToDownload(dRange dateRange, symbolMeta *JsonSymbolMeta) (dateRange, error) {
+func (*JsonStorage) findDailyRangeToDownload(dRange DateRange, symbolMeta *JsonSymbolMeta) (DateRange, error) {
 	firstListed, ok1 := symbolMeta.firstDate()
 	lastListed, ok2 := symbolMeta.lastDate()
 
@@ -241,7 +268,7 @@ func (*JsonStorage) findDailyRangeToDownload(dRange dateRange, symbolMeta *JsonS
 
 	if firstListed.Unix() < dRange.from.Unix() && lastListed.Unix() > dRange.to.Unix() && ok1 && ok2 {
 		// If we already have all candles in this date range just return without errors
-		return dateRange{}, &errNothingToDownload{}
+		return DateRange{}, &errNothingToDownload{}
 	}
 
 	if dRange.from.Unix() > firstListed.Unix() && ok1 {
@@ -256,14 +283,36 @@ func (*JsonStorage) findDailyRangeToDownload(dRange dateRange, symbolMeta *JsonS
 
 }
 
-func (p *JsonStorage) updateWeeklyCandles(s string, dRange dateRange) error {
+func (p *JsonStorage) genNewDailySymbolMeta(symbol string, dateRange DateRange) *JsonSymbolMeta {
+	listedDates := make(map[time.Time]struct{})
+	lastD := dateRange.from
+	for {
+		if lastD.After(dateRange.to) {
+			break
+		}
+		listedDates[lastD] = struct{}{}
+		lastD.AddDate(0, 0, 1)
+
+	}
+
+	symbolMeta := JsonSymbolMeta{
+		symbol,
+		"D",
+		listedDates,
+	}
+
+	return &symbolMeta
+
+}
+
+func (p *JsonStorage) updateWeeklyCandles(s string, dRange DateRange) error {
 	return nil
 
 }
-func (p *JsonStorage) updateTicks(s string, dRange dateRange) error {
+func (p *JsonStorage) updateTicks(s string, dRange DateRange) error {
 	return nil
 }
-func (p *JsonStorage) updateIntradayCandles(minutes int, s string, dRange dateRange) error {
+func (p *JsonStorage) updateIntradayCandles(minutes int, s string, dRange DateRange) error {
 	return nil
 }
 
@@ -275,25 +324,7 @@ func (p *JsonStorage) GetStoredTicks() ([]*Tick, error) {
 	return nil, nil
 }
 
-func MarshallCandles(candles []*Candle) ([]byte, error) {
-	marshaled, err := json.Marshal(candles)
-	if err != nil {
-		return nil, err
-	}
-	//fmt.Println(marshaled)
-	return marshaled, err
-}
-
-func UnMarshallCandles(json_ []byte) ([]*Candle, error) {
-	var candles []*Candle
-
-	err := json.Unmarshal(json_, &candles)
-
-	return candles, err
-
-}
-
-func readCandlesFromFile(path string) ([]*Candle, error) {
+func (*JsonStorage) readCandlesFromFile(path string) ([]*Candle, error) {
 	if !fileExists(path) {
 		return nil, nil //Todo what error?
 	}

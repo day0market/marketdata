@@ -12,7 +12,10 @@ func TestActiveTick_GetCandles_Day(t *testing.T) {
 	at := NewActiveTick(5000, "localhost", 2)
 	from := time.Date(2018, 11, 1, 0, 0, 0, 0, time.UTC)
 	to := time.Date(2018, 11, 10, 0, 0, 0, 0, time.UTC)
-	candles, err := at.GetCandles("SPY", "D", from, to)
+	dRange := DateRange{
+		from, to,
+	}
+	candles, err := at.GetCandles("SPY", "D", dRange)
 	if err != nil {
 		t.Fatal(fmt.Sprintf("%v", err))
 	}
@@ -48,7 +51,10 @@ func TestActiveTick_GetCandles_Intraday(t *testing.T) {
 	at := NewActiveTick(5000, "localhost", 2)
 	from := time.Date(2018, 11, 1, 0, 0, 0, 0, time.UTC)
 	to := time.Date(2018, 11, 10, 0, 0, 0, 0, time.UTC)
-	candles, err := at.GetCandles("SPY", "30", from, to)
+	dRange := DateRange{
+		from, to,
+	}
+	candles, err := at.GetCandles("SPY", "30", dRange)
 	if err != nil {
 		t.Fatal(fmt.Sprintf("%v", err))
 	}
@@ -100,19 +106,22 @@ func TestActiveTick_GetTicks(t *testing.T) {
 	at := NewActiveTick(5000, "localhost", 2)
 	from := time.Date(2018, 11, 1, 0, 0, 0, 0, time.UTC)
 	to := time.Date(2018, 11, 5, 0, 0, 0, 0, time.UTC)
-	ticks, err := at.GetTicks(symbol, from, to, true, true)
+	dRange := DateRange{
+		from, to,
+	}
+	ticks, err := at.GetTicks(symbol, dRange, true, true)
 
 	assert.Equal(t, nil, err)
 	assert.True(t, len(ticks) > 0)
 	fmt.Println(ticks[1])
-	for _, tk:= range ticks{
-		if tk.HasQuote{
+	for _, tk := range ticks {
+		if tk.HasQuote {
 			assert.True(t, math.IsNaN(tk.LastPrice))
 			assert.False(t, math.IsNaN(tk.BidPrice))
 			assert.False(t, math.IsNaN(tk.AskPrice))
 			continue
 		}
-		if tk.HasTrade{
+		if tk.HasTrade {
 			assert.False(t, math.IsNaN(tk.LastPrice))
 			assert.True(t, math.IsNaN(tk.BidPrice))
 			assert.True(t, math.IsNaN(tk.AskPrice))

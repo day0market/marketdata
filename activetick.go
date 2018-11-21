@@ -38,10 +38,10 @@ func NewActiveTick(port uint16, host string, tries uint8) ActiveTick {
 	return at
 }
 
-func (a ActiveTick) GetCandles(symbol string, timeFrame string, fromDate time.Time, toDate time.Time) ([]*Candle, error) {
+func (a ActiveTick) GetCandles(symbol string, timeFrame string, dRange DateRange) ([]*Candle, error) {
 
-	from := convertTimeToActiveTickFormat(fromDate)
-	to := convertTimeToActiveTickFormat(toDate)
+	from := convertTimeToActiveTickFormat(dRange.from)
+	to := convertTimeToActiveTickFormat(dRange.to)
 
 	var uri string
 
@@ -78,7 +78,7 @@ func (a ActiveTick) GetCandles(symbol string, timeFrame string, fromDate time.Ti
 	return candles, err
 }
 
-func (a ActiveTick) GetTicks(symbol string, fromDate time.Time, toDate time.Time, quotes bool, trades bool) ([]*Tick, error) {
+func (a ActiveTick) GetTicks(symbol string, dRange DateRange, quotes bool, trades bool) ([]*Tick, error) {
 	if !quotes && !trades {
 		return nil, &ErrWrongRequest{"Should be selected trades, quotes or both"}
 	}
@@ -91,8 +91,8 @@ func (a ActiveTick) GetTicks(symbol string, fromDate time.Time, toDate time.Time
 		t = 0
 	}
 
-	from := convertTimeToActiveTickFormat(fromDate)
-	to := convertTimeToActiveTickFormat(toDate)
+	from := convertTimeToActiveTickFormat(dRange.from)
+	to := convertTimeToActiveTickFormat(dRange.to)
 
 	uri := fmt.Sprintf("/tickData?symbol=%v&trades=%v&quotes=%v&beginTime=%v&endTime=%v", symbol, t, q, from, to)
 
@@ -160,7 +160,7 @@ func getResponse(url string) (string, error) {
 	}
 
 	if response.StatusCode != 200 {
-		return "", &ErrUnexpectedResponseCode{uint16(response.StatusCode)}
+		return "", &ErrUnexpectedResponseCode{uint16(response.StatusCode), url}
 	}
 
 	defer response.Body.Close()
