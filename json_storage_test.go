@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 	"fmt"
+	"path"
 )
 
 func timeOnTheFly(year int, mounth int, day int) time.Time {
@@ -14,18 +15,18 @@ func timeOnTheFly(year int, mounth int, day int) time.Time {
 }
 
 func getSymbolMetaMock() *JsonSymbolMeta {
-	storedDates := map[time.Time]struct{}{
-		timeOnTheFly(2010, 1, 1):  struct{}{},
-		timeOnTheFly(2010, 1, 2):  struct{}{},
-		timeOnTheFly(2010, 1, 3):  struct{}{},
-		timeOnTheFly(2010, 1, 4):  struct{}{},
-		timeOnTheFly(2010, 1, 5):  struct{}{},
-		timeOnTheFly(2010, 1, 15): struct{}{},
-		timeOnTheFly(2010, 1, 16): struct{}{},
-		timeOnTheFly(2010, 1, 18): struct{}{},
-		timeOnTheFly(2010, 1, 19): struct{}{},
-		timeOnTheFly(2010, 1, 22): struct{}{},
-		timeOnTheFly(2010, 1, 30): struct{}{},
+	storedDates := []time.Time{
+		timeOnTheFly(2010, 1, 1),
+		timeOnTheFly(2010, 1, 2),
+		timeOnTheFly(2010, 1, 3),
+		timeOnTheFly(2010, 1, 4),
+		timeOnTheFly(2010, 1, 5),
+		timeOnTheFly(2010, 1, 1),
+		timeOnTheFly(2010, 1, 1),
+		timeOnTheFly(2010, 1, 1),
+		timeOnTheFly(2010, 1, 1),
+		timeOnTheFly(2010, 1, 2),
+		timeOnTheFly(2010, 1, 30),
 	}
 
 	symbMeta := JsonSymbolMeta{
@@ -46,11 +47,11 @@ func TestJsonSymbolMeta_getEmptyRanges(t *testing.T) {
 	}
 
 	expectedRanges := []*DateRange{
-		&DateRange{timeOnTheFly(2009, 12, 15), timeOnTheFly(2009, 12, 31)},
-		&DateRange{timeOnTheFly(2010, 1, 6), timeOnTheFly(2010, 1, 14)},
-		&DateRange{timeOnTheFly(2010, 1, 17), timeOnTheFly(2010, 1, 17)},
-		&DateRange{timeOnTheFly(2010, 1, 20), timeOnTheFly(2010, 1, 21)},
-		&DateRange{timeOnTheFly(2010, 1, 23), timeOnTheFly(2010, 1, 25)},
+		{timeOnTheFly(2009, 12, 15), timeOnTheFly(2009, 12, 31)},
+		{timeOnTheFly(2010, 1, 6), timeOnTheFly(2010, 1, 14)},
+		{timeOnTheFly(2010, 1, 17), timeOnTheFly(2010, 1, 17)},
+		{timeOnTheFly(2010, 1, 20), timeOnTheFly(2010, 1, 21)},
+		{timeOnTheFly(2010, 1, 23), timeOnTheFly(2010, 1, 25)},
 	}
 
 	symbMeta := getSymbolMetaMock()
@@ -90,6 +91,27 @@ func TestJsonSymbolMeta_firstDate(t *testing.T) {
 	}
 
 	assert.Equal(t, expected, actual)
+
+}
+
+func TestJsonSymbolMeta_Save(t *testing.T) {
+	pth := "./test_data/symbol_meta/test_save.json"
+	defer os.Remove(pth)
+	meta := getSymbolMetaMock()
+	fmt.Println(meta)
+	err := meta.Save(pth)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	loadedMeta := JsonSymbolMeta{}
+	loadedMeta.Load(pth)
+
+	assert.True(t, len(loadedMeta.ListedDates) > 2)
+
+	expectingDate := timeOnTheFly(2010, 01, 01)
+
+	assert.Equal(t, loadedMeta.ListedDates[0], expectingDate)
 
 }
 
@@ -167,9 +189,9 @@ func TestJsonStorage_ensureFolder(t *testing.T) {
 }
 
 func TestJsonStorage_readCandlesFromFile(t *testing.T) {
-	path := "./test_data/candles.json"
+	pth := "./test_data/candles.json"
 	storage := JsonStorage{}
-	candles, err := storage.readCandlesFromFile(path)
+	candles, err := storage.readCandlesFromFile(pth)
 
 	if err != nil {
 		t.Fatal(err)
@@ -234,4 +256,53 @@ func TestJsonStorage_saveAndLoadCandles(t *testing.T) {
 		assert.Equal(t, *v, *loadedCandles[i])
 	}
 
+}
+
+func TestJsonStorage_updateDailyCandles(t *testing.T) {
+	testDir := "./test_data/json_storage"
+	os.RemoveAll(testDir)
+
+	at := NewActiveTick(0, "207.154.204.20", 3)
+	createDirIfNotExists(testDir)
+
+	storage := JsonStorage{
+		testDir,
+		at,
+	}
+
+	//storage.ensureFolders()
+
+	range1 := DateRange{timeOnTheFly(2010, 1, 1), timeOnTheFly(2011, 1, 1)}
+
+	err := storage.updateDailyCandles("SPY", range1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assert.True(t, fileExists(path.Join(testDir, "candles/day", "SPY.json")))
+	assert.True(t, fileExists(path.Join(testDir, "candles/day/.meta", "SPY.json")))
+
+	range2 := DateRange{timeOnTheFly(2010, 5, 1), timeOnTheFly(2015, 1, 1)}
+
+	err2 := storage.updateDailyCandles("SPY", range2)
+	if err2 != nil {
+		t.Fatal(err2)
+	}
+
+	candles, err := storage.readCandlesFromFile(path.Join(testDir, "candles/day", "SPY.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	realRange := DateRange{timeOnTheFly(2010, 1, 1), timeOnTheFly(2015, 1, 1)}
+
+	datasourceCandles, err := at.GetCandles("SPY", "D", realRange)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for i, v := range datasourceCandles {
+		assert.Equal(t, *candles[i], *v)
+	}
 }

@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"fmt"
+	"path/filepath"
 )
 
 func fileExists(path string) bool {
@@ -16,6 +17,16 @@ func fileExists(path string) bool {
 		return false
 	}
 	return true
+}
+
+func createDirIfNotExists(dirPath string) error {
+	if _, err := os.Stat(dirPath); os.IsNotExist(err) {
+
+		err := os.MkdirAll(dirPath, os.ModePerm)
+		return err
+	}
+
+	return nil
 }
 
 type errNothingToDownload struct {
@@ -28,19 +39,49 @@ func (*errNothingToDownload) Error() string {
 type JsonSymbolMeta struct {
 	Symbol      string
 	TimeFrame   string
-	listedDates map[time.Time]struct{} //Time should be always 0
+	ListedDates []time.Time //Time should be always 0
+}
+
+func (j *JsonSymbolMeta) Load(loadPath string) error {
+	jsonFile, err := os.Open(loadPath)
+
+	if err != nil {
+		return err
+	}
+
+	defer jsonFile.Close()
+
+	byteValue, _ := ioutil.ReadAll(jsonFile)
+
+	err = json.Unmarshal(byteValue, j)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+
+}
+
+func (j *JsonSymbolMeta) datesSet() map[time.Time]struct{} {
+	dates := make(map[time.Time]struct{})
+	for _, v := range j.ListedDates {
+		dates[v] = struct{}{}
+	}
+	return dates
 }
 
 func (j *JsonSymbolMeta) getEmptyRanges(rng DateRange) ([]*DateRange, error) {
 	last := rng.from
 
 	var emptyDates []time.Time
+	datesSet := j.datesSet()
 
 	for {
 		if last.After(rng.to) {
 			break
 		}
-		_, ok := j.listedDates[last]
+		_, ok := datesSet[last]
 
 		if !ok {
 			emptyDates = append(emptyDates, last)
@@ -92,7 +133,7 @@ func (j *JsonSymbolMeta) getEmptyRanges(rng DateRange) ([]*DateRange, error) {
 
 func (j *JsonSymbolMeta) firstDate() (time.Time, bool) {
 	minTime := time.Now().AddDate(0, 0, 1)
-	for k := range j.listedDates {
+	for _, k := range j.ListedDates {
 		if k.Unix() < minTime.Unix() {
 			minTime = k
 		}
@@ -107,7 +148,7 @@ func (j *JsonSymbolMeta) firstDate() (time.Time, bool) {
 func (j *JsonSymbolMeta) lastDate() (time.Time, bool) {
 	maxTime := time.Time{}
 
-	for k := range j.listedDates {
+	for _, k := range j.ListedDates {
 		if k.Unix() > maxTime.Unix() {
 			maxTime = k
 		}
@@ -120,6 +161,12 @@ func (j *JsonSymbolMeta) lastDate() (time.Time, bool) {
 }
 
 func (j *JsonSymbolMeta) Save(savePath string) error {
+	dirName := filepath.Dir(savePath)
+	err := createDirIfNotExists(dirName)
+	if err != nil {
+		return err
+	}
+
 	json_, err := json.Marshal(j)
 	if err != nil {
 		return err
@@ -139,15 +186,13 @@ func (p *JsonStorage) ensureFolders() error {
 	ticksFolder := path.Join(p.path, "ticks")
 	candlesFolder := path.Join(p.path, "candles")
 
-	if _, err := os.Stat(candlesFolder); os.IsNotExist(err) {
-
-		err := os.MkdirAll(candlesFolder, os.ModePerm)
+	err := createDirIfNotExists(candlesFolder)
+	if err != nil {
 		return err
 	}
 
-	if _, err := os.Stat(ticksFolder); os.IsNotExist(err) {
-
-		err := os.MkdirAll(ticksFolder, os.ModePerm)
+	err = createDirIfNotExists(ticksFolder)
+	if err != nil {
 		return err
 	}
 
@@ -183,7 +228,7 @@ func (p *JsonStorage) UpdateSymbol(symbol string, tf string, dRange DateRange) e
 }
 
 func (p *JsonStorage) updateDailyCandles(s string, dRange DateRange) error {
-	metaPath := path.Join(p.path, "candles/day/meta", s+".json")
+	metaPath := path.Join(p.path, "candles/day/.meta", s+".json")
 	downloadRange := dRange
 
 	if fileExists(metaPath) {
@@ -204,52 +249,51 @@ func (p *JsonStorage) updateDailyCandles(s string, dRange DateRange) error {
 
 	}
 
-	candles, err := p.provider.GetCandles(s, "D", downloadRange)
-	if err != nil {
-		return err
+	candles, err1 := p.provider.GetCandles(s, "D", downloadRange)
+	if err1 != nil {
+		return err1
 	}
 
 	savePath := path.Join(p.path, "candles/day", s+".json")
-	err = p.saveCandlesToFile(candles, savePath)
+	err2 := p.saveCandlesToFile(candles, savePath)
 
-	if err != nil {
-		return err
+	if err2 != nil {
+		return err2
 	}
 
 	newMeta := p.genNewDailySymbolMeta(s, downloadRange)
-	err = newMeta.Save(metaPath)
-	if err != nil {
-		return err
+	err3 := newMeta.Save(metaPath)
+	if err3 != nil {
+		fmt.Println(err3)
+		return err3
 	}
 	return nil
 
 }
+
 func (p *JsonStorage) saveCandlesToFile(candles []*Candle, savePath string) error {
+	dirName := filepath.Dir(savePath)
+	err := createDirIfNotExists(dirName)
+	if err != nil {
+		return err
+	}
+
 	json_, err := json.Marshal(candles)
 	if err != nil {
 		return err
 	}
 
 	err = ioutil.WriteFile(savePath, json_, 0644)
+	if err != nil {
+		fmt.Println(fmt.Sprintf("Can't write candles to file: %v", err))
+	}
 
 	return err
 }
 
 func (*JsonStorage) loadMeta(path string) (*JsonSymbolMeta, error) {
-	jsonFile, err := os.Open(path)
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer jsonFile.Close()
-
-	byteValue, _ := ioutil.ReadAll(jsonFile)
-
-	var symbolMeta JsonSymbolMeta
-
-	err = json.Unmarshal(byteValue, &symbolMeta)
-
+	symbolMeta := JsonSymbolMeta{}
+	err := symbolMeta.Load(path)
 	if err != nil {
 		return nil, err
 	}
@@ -284,14 +328,14 @@ func (*JsonStorage) findDailyRangeToDownload(dRange DateRange, symbolMeta *JsonS
 }
 
 func (p *JsonStorage) genNewDailySymbolMeta(symbol string, dateRange DateRange) *JsonSymbolMeta {
-	listedDates := make(map[time.Time]struct{})
+	var listedDates []time.Time
 	lastD := dateRange.from
 	for {
 		if lastD.After(dateRange.to) {
 			break
 		}
-		listedDates[lastD] = struct{}{}
-		lastD.AddDate(0, 0, 1)
+		listedDates = append(listedDates, lastD)
+		lastD = lastD.AddDate(0, 0, 1)
 
 	}
 
