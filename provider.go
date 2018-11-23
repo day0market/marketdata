@@ -50,8 +50,8 @@ func (e *ErrNothingToParse) Error() string {
 }
 
 type HistoryProvider interface {
-	GetCandles(symbol string, timeframe string, dRange DateRange) ([]*Candle, error)
-	GetTicks(symbol string, dRange DateRange, quotes bool, trades bool) ([]*Tick, error)
+	GetCandles(symbol string, timeframe string, dRange DateRange) (*CandleArray, error)
+	GetTicks(symbol string, dRange DateRange, quotes bool, trades bool) (*TickArray, error)
 }
 
 type RealTimeTickProvider interface {

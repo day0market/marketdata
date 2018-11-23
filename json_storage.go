@@ -12,23 +12,6 @@ import (
 	"path/filepath"
 )
 
-func fileExists(path string) bool {
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return false
-	}
-	return true
-}
-
-func createDirIfNotExists(dirPath string) error {
-	if _, err := os.Stat(dirPath); os.IsNotExist(err) {
-
-		err := os.MkdirAll(dirPath, os.ModePerm)
-		return err
-	}
-
-	return nil
-}
-
 type errNothingToDownload struct {
 }
 
@@ -71,7 +54,7 @@ func (j *JsonSymbolMeta) datesSet() map[time.Time]struct{} {
 	return dates
 }
 
-func (j *JsonSymbolMeta) getEmptyRanges(rng DateRange) ([]*DateRange, error) {
+func (j *JsonSymbolMeta) getEmptyRanges(rng *DateRange) ([]*DateRange, error) {
 	last := rng.from
 
 	var emptyDates []time.Time
@@ -182,7 +165,42 @@ type JsonStorage struct {
 	provider HistoryProvider
 }
 
-func (p *JsonStorage) ensureFolders() error {
+func (p *JsonStorage) UpdateSymbol(symbol string, tf string, dRange DateRange) error {
+	switch tf {
+	case "D":
+		return p.updateDailyCandles(symbol, &dRange)
+	case "W":
+		return p.updateWeeklyCandles(symbol, &dRange)
+	case "Tick":
+		return p.updateTicks(symbol, &dRange)
+
+	default:
+		minutes, err := strconv.Atoi(tf)
+		if err != nil {
+			return errors.New("Can't recognize timeframe. Should be D, W, Tick or Intraday Minutes (1-60)")
+		}
+
+		if minutes < 1 || minutes > 60 {
+			return errors.New("Intraday minutes should be in range 1-60")
+		}
+
+		return p.updateIntradayCandles(minutes, symbol, &dRange)
+
+	}
+
+	return nil
+
+}
+
+func (p *JsonStorage) GetStoredCandles(symbol string, tf string, dRange DateRange) (*CandleArray, error) {
+	return nil, nil
+}
+
+func (p *JsonStorage) GetStoredTicks(symbol string,  dRange DateRange) (*TickArray, error) {
+	return nil, nil
+}
+
+func (p *JsonStorage) createFolders() error {
 	ticksFolder := path.Join(p.path, "ticks")
 	candlesFolder := path.Join(p.path, "candles")
 
@@ -200,78 +218,7 @@ func (p *JsonStorage) ensureFolders() error {
 
 }
 
-func (p *JsonStorage) UpdateSymbol(symbol string, tf string, dRange DateRange) error {
-	switch tf {
-	case "D":
-		return p.updateDailyCandles(symbol, dRange)
-	case "W":
-		return p.updateWeeklyCandles(symbol, dRange)
-	case "Tick":
-		return p.updateTicks(symbol, dRange)
-
-	default:
-		minutes, err := strconv.Atoi(tf)
-		if err != nil {
-			return errors.New("Can't recognize timeframe. Should be D, W, Tick or Intraday Minutes (1-60)")
-		}
-
-		if minutes < 1 || minutes > 60 {
-			return errors.New("Intraday minutes should be in range 1-60")
-		}
-
-		return p.updateIntradayCandles(minutes, symbol, dRange)
-
-	}
-
-	return nil
-
-}
-
-func (p *JsonStorage) updateDailyCandles(s string, dRange DateRange) error {
-	metaPath := path.Join(p.path, "candles/day/.meta", s+".json")
-	downloadRange := dRange
-
-	if fileExists(metaPath) {
-		symbolMeta, err := p.loadMeta(metaPath)
-		if err != nil {
-			return err
-		}
-
-		downloadRange, err = p.findDailyRangeToDownload(dRange, symbolMeta)
-		if err != nil {
-			switch err.(type) {
-			case *errNothingToDownload:
-				return nil
-			default:
-				return err
-			}
-		}
-
-	}
-
-	candles, err1 := p.provider.GetCandles(s, "D", downloadRange)
-	if err1 != nil {
-		return err1
-	}
-
-	savePath := path.Join(p.path, "candles/day", s+".json")
-	err2 := p.saveCandlesToFile(candles, savePath)
-
-	if err2 != nil {
-		return err2
-	}
-
-	newMeta := p.genNewDailySymbolMeta(s, downloadRange)
-	err3 := newMeta.Save(metaPath)
-	if err3 != nil {
-		fmt.Println(err3)
-		return err3
-	}
-	return nil
-
-}
-
-func (p *JsonStorage) saveCandlesToFile(candles []*Candle, savePath string) error {
+func (p *JsonStorage) saveCandlesToFile(candles *CandleArray, savePath string) error {
 	dirName := filepath.Dir(savePath)
 	err := createDirIfNotExists(dirName)
 	if err != nil {
@@ -291,43 +238,108 @@ func (p *JsonStorage) saveCandlesToFile(candles []*Candle, savePath string) erro
 	return err
 }
 
-func (*JsonStorage) loadMeta(path string) (*JsonSymbolMeta, error) {
-	symbolMeta := JsonSymbolMeta{}
-	err := symbolMeta.Load(path)
+func (*JsonStorage) readCandlesFromFile(path string) (*CandleArray, error) {
+	if !fileExists(path) {
+		return nil, nil //Todo what error?
+	}
+
+	jsonFile, err := os.Open(path)
+
 	if err != nil {
 		return nil, err
 	}
 
-	return &symbolMeta, nil
+	defer jsonFile.Close()
+
+	byteValue, _ := ioutil.ReadAll(jsonFile)
+
+	var candles CandleArray
+
+	err = json.Unmarshal(byteValue, &candles)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &candles, err
 
 }
 
-func (*JsonStorage) findDailyRangeToDownload(dRange DateRange, symbolMeta *JsonSymbolMeta) (DateRange, error) {
+func (p *JsonStorage) updateDailyCandles(s string, dRange *DateRange) error {
+
+	downloadRange, err := p.findDailyRangeToDownload(dRange, s)
+	if err != nil {
+		switch err.(type) {
+		case *errNothingToDownload:
+			return nil
+		default:
+			return err
+		}
+	}
+
+	candles, err1 := p.provider.GetCandles(s, "D", *downloadRange)
+	if err1 != nil {
+		return err1
+	}
+
+	savePath := path.Join(p.path, "candles/day", s+".json")
+	err2 := p.saveCandlesToFile(candles, savePath)
+
+	if err2 != nil {
+		return err2
+	}
+
+	newMeta := p.genNewDailySymbolMeta(s, downloadRange)
+	metaPath := path.Join(p.path, "candles/day/.meta", s+".json")
+	err3 := newMeta.Save(metaPath)
+	if err3 != nil {
+		fmt.Println(err3)
+		return err3
+	}
+	return nil
+
+}
+
+func (p *JsonStorage) findDailyRangeToDownload(dRange *DateRange, symbol string) (*DateRange, error) {
+	metaPath := path.Join(p.path, "candles/day/.meta", symbol+".json")
+	downloadRange := *dRange
+
+	if !fileExists(metaPath){
+		return &downloadRange, nil
+	}
+
+	symbolMeta := JsonSymbolMeta{}
+	err := symbolMeta.Load(metaPath)
+	if err != nil {
+		return nil, err
+	}
+
+
 	firstListed, ok1 := symbolMeta.firstDate()
 	lastListed, ok2 := symbolMeta.lastDate()
 
 	if !ok1 && !ok2 {
-		return dRange, nil
+		return &downloadRange, nil
 	}
 
 	if firstListed.Unix() < dRange.from.Unix() && lastListed.Unix() > dRange.to.Unix() && ok1 && ok2 {
 		// If we already have all candles in this date range just return without errors
-		return DateRange{}, &errNothingToDownload{}
+		return nil, &errNothingToDownload{}
 	}
 
 	if dRange.from.Unix() > firstListed.Unix() && ok1 {
-		dRange.from = firstListed
+		downloadRange.from = firstListed
 	}
 
 	if dRange.to.Unix() < lastListed.Unix() && ok2 {
-		dRange.to = lastListed
+		downloadRange.to = lastListed
 	}
 
-	return dRange, nil
+	return &downloadRange, nil
 
 }
 
-func (p *JsonStorage) genNewDailySymbolMeta(symbol string, dateRange DateRange) *JsonSymbolMeta {
+func (p *JsonStorage) genNewDailySymbolMeta(symbol string, dateRange *DateRange) *JsonSymbolMeta {
 	var listedDates []time.Time
 	lastD := dateRange.from
 	for {
@@ -349,48 +361,17 @@ func (p *JsonStorage) genNewDailySymbolMeta(symbol string, dateRange DateRange) 
 
 }
 
-func (p *JsonStorage) updateWeeklyCandles(s string, dRange DateRange) error {
+func (p *JsonStorage) updateWeeklyCandles(s string, dRange *DateRange) error {
 	return nil
 
 }
-func (p *JsonStorage) updateTicks(s string, dRange DateRange) error {
+
+func (p *JsonStorage) updateTicks(s string, dRange *DateRange) error {
 	return nil
 }
-func (p *JsonStorage) updateIntradayCandles(minutes int, s string, dRange DateRange) error {
+
+func (p *JsonStorage) updateIntradayCandles(minutes int, s string, dRange *DateRange) error {
 	return nil
 }
 
-func (p *JsonStorage) GetStoredCandles(TimeFrame string) ([]*Candle, error) {
-	return nil, nil
-}
 
-func (p *JsonStorage) GetStoredTicks() ([]*Tick, error) {
-	return nil, nil
-}
-
-func (*JsonStorage) readCandlesFromFile(path string) ([]*Candle, error) {
-	if !fileExists(path) {
-		return nil, nil //Todo what error?
-	}
-
-	jsonFile, err := os.Open(path)
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer jsonFile.Close()
-
-	byteValue, _ := ioutil.ReadAll(jsonFile)
-
-	var candles []*Candle
-
-	err = json.Unmarshal(byteValue, &candles)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return candles, err
-
-}

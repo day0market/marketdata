@@ -38,7 +38,7 @@ func NewActiveTick(port uint16, host string, tries uint8) ActiveTick {
 	return at
 }
 
-func (a ActiveTick) GetCandles(symbol string, timeFrame string, dRange DateRange) ([]*Candle, error) {
+func (a ActiveTick) GetCandles(symbol string, timeFrame string, dRange DateRange) (*CandleArray, error) {
 
 	from := convertTimeToActiveTickFormat(dRange.from)
 	to := convertTimeToActiveTickFormat(dRange.to)
@@ -78,7 +78,7 @@ func (a ActiveTick) GetCandles(symbol string, timeFrame string, dRange DateRange
 	return candles, err
 }
 
-func (a ActiveTick) GetTicks(symbol string, dRange DateRange, quotes bool, trades bool) ([]*Tick, error) {
+func (a ActiveTick) GetTicks(symbol string, dRange DateRange, quotes bool, trades bool) (*TickArray, error) {
 	if !quotes && !trades {
 		return nil, &ErrWrongRequest{"Should be selected trades, quotes or both"}
 	}
@@ -183,12 +183,12 @@ func getResponse(url string) (string, error) {
 
 }
 
-func parseToCandlesList(raw string) ([]*Candle, error) {
+func parseToCandlesList(raw string) (*CandleArray, error) {
 	if raw == "" {
 		return nil, &ErrNothingToParse{}
 	}
 	lines := strings.Split(raw, "\r\n")
-	var candles []*Candle
+	var candles CandleArray
 
 	for _, l := range lines {
 
@@ -207,32 +207,32 @@ func parseToCandlesList(raw string) ([]*Candle, error) {
 		}
 		datetime, err := time.Parse(layout, s[0])
 		if err != nil {
-			return candles, &ErrParsingMarketData{l, "Candle"}
+			return nil, &ErrParsingMarketData{l, "Candle"}
 		}
 
 		open, err := strconv.ParseFloat(s[1], 64)
 		if err != nil {
-			return candles, &ErrParsingMarketData{l, "Candle"}
+			return nil, &ErrParsingMarketData{l, "Candle"}
 		}
 
 		high, err := strconv.ParseFloat(s[2], 64)
 		if err != nil {
-			return candles, &ErrParsingMarketData{l, "Candle"}
+			return nil, &ErrParsingMarketData{l, "Candle"}
 		}
 
 		low, err := strconv.ParseFloat(s[3], 64)
 		if err != nil {
-			return candles, &ErrParsingMarketData{l, "Candle"}
+			return nil, &ErrParsingMarketData{l, "Candle"}
 		}
 
 		close_, err := strconv.ParseFloat(s[4], 64)
 		if err != nil {
-			return candles, &ErrParsingMarketData{l, "Candle"}
+			return nil, &ErrParsingMarketData{l, "Candle"}
 		}
 
 		volume, err := strconv.ParseInt(s[5], 10, 64)
 		if err != nil {
-			return candles, &ErrParsingMarketData{l, "Candle"}
+			return nil, &ErrParsingMarketData{l, "Candle"}
 		}
 
 		candle := Candle{
@@ -250,15 +250,15 @@ func parseToCandlesList(raw string) ([]*Candle, error) {
 
 	}
 
-	return candles, nil
+	return &candles, nil
 }
 
-func parseToTQ(raw string) ([]*Tick, error) {
+func parseToTQ(raw string) (*TickArray, error) {
 	if raw == "" {
 		return nil, &ErrNothingToParse{}
 	}
 	lines := strings.Split(raw, "\r\n")
-	var ticks []*Tick
+	var ticks TickArray
 
 	for _, l := range lines {
 
@@ -291,7 +291,7 @@ func parseToTQ(raw string) ([]*Tick, error) {
 
 	}
 
-	return ticks, nil
+	return &ticks, nil
 
 }
 

@@ -8,8 +8,13 @@ import (
 	"math"
 )
 
+func mockActiveTick() *ActiveTick {
+	at := NewActiveTick(84, "207.154.204.20", 2)
+	return &at
+}
+
 func TestActiveTick_GetCandles_Day(t *testing.T) {
-	at := NewActiveTick(5000, "localhost", 2)
+	at := mockActiveTick()
 	from := time.Date(2018, 11, 1, 0, 0, 0, 0, time.UTC)
 	to := time.Date(2018, 11, 10, 0, 0, 0, 0, time.UTC)
 	dRange := DateRange{
@@ -20,14 +25,14 @@ func TestActiveTick_GetCandles_Day(t *testing.T) {
 		t.Fatal(fmt.Sprintf("%v", err))
 	}
 
-	if len(candles) != 7 {
-		t.Fatal(fmt.Sprintf("Candles len mistmatch %v", len(candles)))
+	if len(*candles) != 7 {
+		t.Fatal(fmt.Sprintf("Candles len mistmatch %v", len(*candles)))
 	}
 
 	expectedDate := time.Date(2018, 11, 1, 0, 0, 0, 0, time.UTC)
 
-	if candles[0].Datetime != expectedDate {
-		t.Fatal(fmt.Sprintf("Expected %v, got %v", expectedDate, candles[0].Datetime))
+	if (*candles)[0].Datetime != expectedDate {
+		t.Fatal(fmt.Sprintf("Expected %v, got %v", expectedDate, (*candles)[0].Datetime))
 	}
 
 	//20181101000000,271.600000,273.730000,270.380000,273.370000,89496311
@@ -42,13 +47,13 @@ func TestActiveTick_GetCandles_Day(t *testing.T) {
 		expectedDate,
 	}
 
-	if *candles[0] != expectedCandle {
-		t.Fatal(fmt.Sprintf("Expected candle %v but got %v", expectedCandle, *candles[0]))
+	if *(*candles)[0] != expectedCandle {
+		t.Fatal(fmt.Sprintf("Expected candle %v but got %v", expectedCandle, *(*candles)[0]))
 	}
 }
 
 func TestActiveTick_GetCandles_Intraday(t *testing.T) {
-	at := NewActiveTick(5000, "localhost", 2)
+	at := mockActiveTick()
 	from := time.Date(2018, 11, 1, 0, 0, 0, 0, time.UTC)
 	to := time.Date(2018, 11, 10, 0, 0, 0, 0, time.UTC)
 	dRange := DateRange{
@@ -59,14 +64,14 @@ func TestActiveTick_GetCandles_Intraday(t *testing.T) {
 		t.Fatal(fmt.Sprintf("%v", err))
 	}
 
-	if len(candles) != 98 {
-		t.Fatal(fmt.Sprintf("Candles len mistmatch %v", len(candles)))
+	if len(*candles) != 98 {
+		t.Fatal(fmt.Sprintf("Candles len mistmatch %v", len(*candles)))
 	}
 
 	expectedDate := time.Date(2018, 11, 1, 9, 30, 0, 0, time.UTC)
 
-	if candles[0].Datetime != expectedDate {
-		t.Fatal(fmt.Sprintf("Expected %v, got %v", expectedDate, candles[0].Datetime))
+	if (*candles)[0].Datetime != expectedDate {
+		t.Fatal(fmt.Sprintf("Expected %v, got %v", expectedDate, (*candles)[0].Datetime))
 	}
 
 	//20181101093000,271.600000,272.180000,270.780000,271.290000,12164925
@@ -81,8 +86,8 @@ func TestActiveTick_GetCandles_Intraday(t *testing.T) {
 		expectedDate,
 	}
 
-	if *candles[0] != expectedCandle {
-		t.Fatal(fmt.Sprintf("Expected candle %v but got %v", expectedCandle, *candles[0]))
+	if *(*candles)[0] != expectedCandle {
+		t.Fatal(fmt.Sprintf("Expected candle %v but got %v", expectedCandle, *(*candles)[0]))
 	}
 }
 
@@ -93,7 +98,7 @@ func TestActiveTick_getResponse(t *testing.T) {
 	assert.Equal(t, &expectedError, err)
 	assert.Equal(t, resp, "")
 
-	url = "http://localhost:5000/optionChain?symbol=MSFT"
+	url = "http://207.154.204.20/optionChain?symbol=MSFT"
 	resp, err = getResponse(url)
 
 	assert.Equal(t, nil, err)
@@ -103,7 +108,7 @@ func TestActiveTick_getResponse(t *testing.T) {
 func TestActiveTick_GetTicks(t *testing.T) {
 	symbol := "PSCC"
 
-	at := NewActiveTick(5000, "localhost", 2)
+	at := mockActiveTick()
 	from := time.Date(2018, 11, 1, 0, 0, 0, 0, time.UTC)
 	to := time.Date(2018, 11, 5, 0, 0, 0, 0, time.UTC)
 	dRange := DateRange{
@@ -112,9 +117,9 @@ func TestActiveTick_GetTicks(t *testing.T) {
 	ticks, err := at.GetTicks(symbol, dRange, true, true)
 
 	assert.Equal(t, nil, err)
-	assert.True(t, len(ticks) > 0)
-	fmt.Println(ticks[1])
-	for _, tk := range ticks {
+	assert.True(t, len(*ticks) > 0)
+
+	for _, tk := range *ticks {
 		if tk.HasQuote {
 			assert.True(t, math.IsNaN(tk.LastPrice))
 			assert.False(t, math.IsNaN(tk.BidPrice))
