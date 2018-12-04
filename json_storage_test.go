@@ -117,7 +117,7 @@ func TestJsonSymbolMeta_Save(t *testing.T) {
 	defer os.Remove(pth)
 	meta := getSymbolMetaMock()
 	fmt.Println(meta)
-	err := meta.Save(pth)
+	err := meta.save(pth)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -238,7 +238,7 @@ func TestJsonStorage_saveCandlesToFile(t *testing.T) {
 		at,
 	}
 
-	err = storage.saveCandlesToFile(candles, "./test_data/save_test.json")
+	err = storage.saveCandlesToFile(&candles, "./test_data/save_test.json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -263,7 +263,7 @@ func TestJsonStorage_saveAndLoadCandles(t *testing.T) {
 		at,
 	}
 
-	err = storage.saveCandlesToFile(candles, "./test_data/TEST_read_write.json")
+	err = storage.saveCandlesToFile(&candles, "./test_data/TEST_read_write.json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -274,7 +274,7 @@ func TestJsonStorage_saveAndLoadCandles(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for i, v := range *candles {
+	for i, v := range candles {
 		assert.Equal(t, *v, *(*loadedCandles)[i])
 	}
 
@@ -325,7 +325,7 @@ func TestJsonStorage_updateDailyCandles(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for i, v := range *datasourceCandles {
+	for i, v := range datasourceCandles {
 		assert.Equal(t, *(*candles)[i], *v)
 	}
 }
@@ -346,9 +346,17 @@ func TestJsonStorage_updateTicks(t *testing.T) {
 	start := timeOnTheFly(2018, 10, 1)
 	end := timeOnTheFly(2018, 10, 15)
 
-	range1 := DateRange{start, end}
 
-	err := storage.updateTicks("GJH", &range1, true, true)
+	params := TickUpdateParams{
+		"GJH",
+		start,
+		end,
+		true,
+		true,
+		true,
+	}
+
+	err := storage.UpdateSymbolTicks(params)
 
 	if err != nil {
 		t.Fatal(err)
@@ -382,9 +390,18 @@ func TestJsonStorage_updateTicks(t *testing.T) {
 	start = timeOnTheFly(2018, 9, 25)
 	end = timeOnTheFly(2018, 10, 18)
 
-	range1 = DateRange{start, end}
 
-	err = storage.updateTicks("GJH", &range1, true, true)
+
+	params = TickUpdateParams{
+		"GJH",
+		start,
+		end,
+		true,
+		true,
+		true,
+	}
+
+	err = storage.UpdateSymbolTicks(params)
 
 	files, err = ioutil.ReadDir(folderSymbol)
 	if err != nil {
@@ -440,7 +457,7 @@ func TestJsonStorage_updateTicks(t *testing.T) {
 		}
 
 		for i, v := range *storedTicks {
-			assert.Equal(t, v.Datetime, (*atTicks)[i].Datetime)
+			assert.Equal(t, v.Datetime, atTicks[i].Datetime)
 		}
 
 		start = start.AddDate(0, 0, 1)
@@ -451,7 +468,7 @@ func TestJsonStorage_updateTicks(t *testing.T) {
 
 func TestJsonStorage_getLoadedTickDates(t *testing.T) {
 	storage := JsonStorage{}
-	dates, err := storage.getLoadedTickDates("C:\\Users\\alex1\\go\\src\\alex\\marketdata\\test_data\\json_storage\\ticks\\GJH")
+	dates, err := storage.getStoredTickDates("C:\\Users\\alex1\\go\\src\\alex\\marketdata\\test_data\\json_storage\\ticks\\GJH")
 	fmt.Println(err)
 	for _, d := range dates {
 		fmt.Println(d.Format("2006-01-02"))

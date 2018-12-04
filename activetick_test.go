@@ -24,14 +24,14 @@ func TestActiveTick_GetCandles_Day(t *testing.T) {
 		t.Fatal(fmt.Sprintf("%v", err))
 	}
 
-	if len(*candles) != 7 {
-		t.Fatal(fmt.Sprintf("Candles len mistmatch %v", len(*candles)))
+	if len(candles) != 7 {
+		t.Fatal(fmt.Sprintf("Candles len mistmatch %v", len(candles)))
 	}
 
 	expectedDate := time.Date(2018, 11, 1, 0, 0, 0, 0, time.UTC)
 
-	if (*candles)[0].Datetime != expectedDate {
-		t.Fatal(fmt.Sprintf("Expected %v, got %v", expectedDate, (*candles)[0].Datetime))
+	if candles[0].Datetime != expectedDate {
+		t.Fatal(fmt.Sprintf("Expected %v, got %v", expectedDate, (candles)[0].Datetime))
 	}
 
 	//20181101000000,271.600000,273.730000,270.380000,273.370000,89496311
@@ -46,8 +46,8 @@ func TestActiveTick_GetCandles_Day(t *testing.T) {
 		expectedDate,
 	}
 
-	if *(*candles)[0] != expectedCandle {
-		t.Fatal(fmt.Sprintf("Expected candle %v but got %v", expectedCandle, *(*candles)[0]))
+	if *candles[0] != expectedCandle {
+		t.Fatal(fmt.Sprintf("Expected candle %v but got %v", expectedCandle, *candles[0]))
 	}
 }
 
@@ -63,14 +63,14 @@ func TestActiveTick_GetCandles_Intraday(t *testing.T) {
 		t.Fatal(fmt.Sprintf("%v", err))
 	}
 
-	if len(*candles) != 98 {
-		t.Fatal(fmt.Sprintf("Candles len mistmatch %v", len(*candles)))
+	if len(candles) != 98 {
+		t.Fatal(fmt.Sprintf("Candles len mistmatch %v", len(candles)))
 	}
 
 	expectedDate := time.Date(2018, 11, 1, 9, 30, 0, 0, time.UTC)
 
-	if (*candles)[0].Datetime != expectedDate {
-		t.Fatal(fmt.Sprintf("Expected %v, got %v", expectedDate, (*candles)[0].Datetime))
+	if candles[0].Datetime != expectedDate {
+		t.Fatal(fmt.Sprintf("Expected %v, got %v", expectedDate, candles[0].Datetime))
 	}
 
 	//20181101093000,271.600000,272.180000,270.780000,271.290000,12164925
@@ -85,8 +85,8 @@ func TestActiveTick_GetCandles_Intraday(t *testing.T) {
 		expectedDate,
 	}
 
-	if *(*candles)[0] != expectedCandle {
-		t.Fatal(fmt.Sprintf("Expected candle %v but got %v", expectedCandle, *(*candles)[0]))
+	if *candles[0] != expectedCandle {
+		t.Fatal(fmt.Sprintf("Expected candle %v but got %v", expectedCandle, *candles[0]))
 	}
 }
 
@@ -116,19 +116,19 @@ func TestActiveTick_GetTicks(t *testing.T) {
 	ticks, err := at.GetTicks(symbol, dRange, true, true)
 
 	assert.Equal(t, nil, err)
-	assert.True(t, len(*ticks) > 0)
+	assert.True(t, len(ticks) > 0)
 
-	for _, tk := range *ticks {
+	for _, tk := range ticks {
 		if tk.HasQuote {
-			assert.True(t,  tk.LastPrice==-1)
-			assert.False(t, tk.BidPrice==-1)
-			assert.False(t, tk.AskPrice==-1)
+			assert.True(t, tk.LastPrice == -1)
+			assert.False(t, tk.BidPrice == -1)
+			assert.False(t, tk.AskPrice == -1)
 			continue
 		}
 		if tk.HasTrade {
-			assert.False(t, tk.LastPrice==-1)
-			assert.True(t,  tk.BidPrice==-1)
-			assert.True(t,  tk.AskPrice==-1)
+			assert.False(t, tk.LastPrice == -1)
+			assert.True(t, tk.BidPrice == -1)
+			assert.True(t, tk.AskPrice == -1)
 
 		}
 	}

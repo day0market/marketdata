@@ -34,11 +34,70 @@ func (*errNothingToDownload) Error() string {
 	return "Nothing to download"
 }
 
-type JsonSymbolMeta struct {
+// Public request params
+type TickUpdateParams struct {
+	Symbol         string
+	FromDate       time.Time
+	ToDate         time.Time
+	Quotes         bool
+	Trades         bool
+	UpdateWeekends bool
+}
 
+func (p *TickUpdateParams) checkErrors() error {
+	if !p.Trades && !p.Quotes {
+		return errors.New("Wrong parameters. Should be selected trades, quotes or both")
+	}
+
+	if p.FromDate.After(p.ToDate) {
+		return errors.New("From date should be less than to date")
+	}
+
+	if p.Symbol == "" {
+		return errors.New("Symbol not specified")
+	}
+
+	return nil
+
+}
+
+func (p *TickUpdateParams) modifyTimes() {
+	p.ToDate = time.Date(p.ToDate.Year(), p.ToDate.Month(), p.ToDate.Day(), 0, 0, 0, 0, time.UTC)
+	p.FromDate = time.Date(p.FromDate.Year(), p.FromDate.Month(), p.FromDate.Day(), 0, 0, 0, 0, time.UTC)
+}
+
+type CandlesUpdateParams struct {
+	Symbol         string
+	TimeFrame      string
+	FromDate       time.Time
+	ToDate         time.Time
+	UpdateWeekends bool
+}
+
+func (p *CandlesUpdateParams) modifyTimes() {
+	p.ToDate = time.Date(p.ToDate.Year(), p.ToDate.Month(), p.ToDate.Day(), 0, 0, 0, 0, time.UTC)
+	p.FromDate = time.Date(p.FromDate.Year(), p.FromDate.Month(), p.FromDate.Day(), 0, 0, 0, 0, time.UTC)
+}
+
+func (p *CandlesUpdateParams) checkErrors() error {
+	if p.FromDate.After(p.ToDate) {
+		return errors.New("From date should be less than to date")
+	}
+
+	if p.Symbol == "" {
+		return errors.New("Symbol not specified")
+	}
+
+	//Todo check timeframe here
+	return nil
+}
+
+// Symbol meta information *************************************************
+
+type JsonSymbolMeta struct {
 	Symbol      string
 	TimeFrame   string
-	ListedDates []time.Time //Time should be always 0
+	ListedDates []time.Time
 }
 
 func (j *JsonSymbolMeta) Load(loadPath string) error {
@@ -120,6 +179,14 @@ func (j *JsonSymbolMeta) getEmptyDates(rng *DateRange) ([]time.Time, error) {
 	var emptyDates []time.Time
 	datesSet := j.datesSet()
 
+	if rng.from.Equal(rng.to) {
+		if _, ok := datesSet[rng.from]; ok {
+			return emptyDates, nil
+		}
+		emptyDates = append(emptyDates, rng.from)
+		return emptyDates, nil
+	}
+
 	for {
 		if last.After(rng.to) {
 			break
@@ -167,7 +234,7 @@ func (j *JsonSymbolMeta) lastDate() (time.Time, bool) {
 
 }
 
-func (j *JsonSymbolMeta) Save(savePath string) error {
+func (j *JsonSymbolMeta) save(savePath string) error {
 	dirName := filepath.Dir(savePath)
 	err := createDirIfNotExists(dirName)
 	if err != nil {
@@ -184,43 +251,24 @@ func (j *JsonSymbolMeta) Save(savePath string) error {
 	return err
 }
 
-type JsonStorage struct {
-	workers  int
-	path     string
-	provider HistoryProvider
-}
+func loadMetaIfExists(metaPath string) *JsonSymbolMeta {
+	jsonMeta := JsonSymbolMeta{}
 
-func (p *JsonStorage) UpdateSymbolCandles(symbol string, tf string, dRange DateRange) error {
-	switch tf {
-	case "D":
-		return p.updateDailyCandles(symbol, &dRange)
-	case "W":
-		return p.updateWeeklyCandles(symbol, &dRange)
-
-	default:
-		minutes, err := strconv.Atoi(tf)
-		if err != nil {
-			return errors.New("Can't recognize timeframe. Should be D, W, Tick or Intraday Minutes (1-60)")
-		}
-
-		if minutes < 1 || minutes > 60 {
-			return errors.New("Intraday minutes should be in range 1-60")
-		}
-
-		return p.updateIntradayCandles(minutes, symbol, &dRange)
+	if fileExists(metaPath) {
+		jsonMeta.Load(metaPath)
 
 	}
 
-	return nil
+	return &jsonMeta
 
 }
 
-func (p *JsonStorage) GetStoredCandles(symbol string, tf string, dRange DateRange) (*CandleArray, error) {
-	return nil, nil
-}
+// Storage code starts here **************************************************
 
-func (p *JsonStorage) GetStoredTicks(symbol string, dRange DateRange) (*TickArray, error) {
-	return nil, nil
+type JsonStorage struct {
+	updateWorkers int
+	path          string
+	provider      HistoryProvider
 }
 
 func (p *JsonStorage) createFolders() error {
@@ -235,6 +283,48 @@ func (p *JsonStorage) createFolders() error {
 	err = createDirIfNotExists(ticksFolder)
 	if err != nil {
 		return err
+	}
+
+	return nil
+
+}
+
+func (p *JsonStorage) GetStoredCandles(symbol string, tf string, dRange DateRange) (*CandleArray, error) {
+	return nil, nil
+}
+
+func (p *JsonStorage) GetStoredTicks(symbol string, dRange DateRange) (*TickArray, error) {
+	return nil, nil
+}
+
+func (p *JsonStorage) UpdateSymbolCandles(params CandlesUpdateParams) error {
+	err := params.checkErrors()
+	params.modifyTimes()
+
+	if err != nil {
+		return err
+	}
+	dRange := DateRange{
+		params.FromDate, params.ToDate,
+	}
+	switch params.TimeFrame {
+	case "D":
+		return p.updateDailyCandles(params.Symbol, &dRange)
+	case "W":
+		return p.updateWeeklyCandles(params.Symbol, &dRange)
+
+	default:
+		minutes, err := strconv.Atoi(params.TimeFrame)
+		if err != nil {
+			return errors.New("Can't recognize timeframe. Should be D, W, Tick or Intraday Minutes (1-60)")
+		}
+
+		if minutes < 1 || minutes > 60 {
+			return errors.New("Intraday minutes should be in range 1-60")
+		}
+
+		return p.updateIntradayCandles(minutes, params.Symbol, &dRange)
+
 	}
 
 	return nil
@@ -306,7 +396,7 @@ func (p *JsonStorage) updateDailyCandles(s string, dRange *DateRange) error {
 	}
 
 	savePath := path.Join(p.path, "candles/day", s+".json")
-	err2 := p.saveCandlesToFile(candles, savePath)
+	err2 := p.saveCandlesToFile(&candles, savePath)
 
 	if err2 != nil {
 		return err2
@@ -314,7 +404,7 @@ func (p *JsonStorage) updateDailyCandles(s string, dRange *DateRange) error {
 
 	newMeta := p.genNewDailySymbolMeta(s, downloadRange)
 	metaPath := path.Join(p.path, "candles/day/.meta", s+".json")
-	err3 := newMeta.Save(metaPath)
+	err3 := newMeta.save(metaPath)
 	if err3 != nil {
 		fmt.Println(err3)
 		return err3
@@ -388,40 +478,34 @@ func (p *JsonStorage) updateWeeklyCandles(s string, dRange *DateRange) error {
 
 }
 
-func (p *JsonStorage) updateTicks(symbol string, dRange *DateRange, quotes bool, trades bool) error {
-	folderName := ""
-	if quotes {
-		folderName += "quotes"
-	}
-	if trades {
-		if folderName != "" {
-			folderName += "_trades"
-		} else {
-			folderName += "trades"
-		}
-	}
-	metaPath := path.Join(p.path, "ticks", folderName, ".meta", symbol+".json")
+func (p *JsonStorage) updateIntradayCandles(minutes int, s string, dRange *DateRange) error {
+	return nil
+}
 
-	jsonMeta := JsonSymbolMeta{}
-
-
-	if fileExists(metaPath) {
-		jsonMeta.Load(metaPath)
-
+func (p *JsonStorage) UpdateSymbolTicks(params TickUpdateParams) error {
+	err := params.checkErrors()
+	params.modifyTimes()
+	if err != nil {
+		return err
 	}
 
-	emptyDates, err := jsonMeta.getEmptyDates(dRange)
+	folderName := p.generateTicksFolderName(params.Quotes, params.Trades)
+	metaPath := path.Join(p.path, "ticks", folderName, ".meta", params.Symbol+".json")
+
+	jsonMeta := loadMetaIfExists(metaPath)
+	dRange := DateRange{params.FromDate, params.ToDate}
+
+	emptyDates, err := jsonMeta.getEmptyDates(&dRange)
 
 	if err != nil {
 		return err
 	}
 
 	if emptyDates == nil {
-		return errors.Wrapf(&errNothingToDownload{}, "updateTicks() symbol: %v dRange: %v", symbol, &dRange)
+		return errors.Wrapf(&errNothingToDownload{}, "UpdateSymbolTicks() Symbol: %v dRange: %v", params.Symbol, &dRange)
 	}
 
 	wg := &sync.WaitGroup{}
-
 
 	datesChan := make(chan tickRequestParams, 2)
 	errorsChan := make(chan error)
@@ -437,7 +521,7 @@ func (p *JsonStorage) updateTicks(symbol string, dRange *DateRange, quotes bool,
 	var retError error
 
 	//Workers pool
-	for i := 0; i < p.workers; i++ {
+	for i := 0; i < p.updateWorkers; i++ {
 		go func() {
 			wg.Add(1)
 			p.tickUpdateWorker(ctx, datesChan, errorsChan, successChan)
@@ -452,13 +536,11 @@ func (p *JsonStorage) updateTicks(symbol string, dRange *DateRange, quotes bool,
 		for _, d := range emptyDates {
 
 			params := tickRequestParams{
-				trades,
-				quotes,
+				params.Trades,
+				params.Quotes,
 				d,
-				symbol,
+				params.Symbol,
 			}
-
-			//fmt.Println(params)
 
 			datesChan <- params
 		}
@@ -496,16 +578,15 @@ LoadingLoop:
 		}
 	}
 
-
 	wg.Wait()
 
-	storageFolder := path.Join(p.path, "ticks", folderName, symbol)
-	listedDates, err := p.getLoadedTickDates(storageFolder)
+	storageFolder := path.Join(p.path, "ticks", folderName, params.Symbol)
+	listedDates, err := p.getStoredTickDates(storageFolder)
 	if err != nil {
 		return err
 	}
 	jsonMeta.ListedDates = listedDates
-	jsonMeta.Save(metaPath)
+	jsonMeta.save(metaPath)
 
 	return retError
 }
@@ -528,17 +609,7 @@ LOOP:
 			r.from = time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, time.UTC)
 			r.to = time.Date(d.Year(), d.Month(), d.Day(), 23, 59, 59, 59, time.UTC)
 
-			folderName := ""
-			if par.quotes {
-				folderName += "quotes"
-			}
-			if par.trades {
-				if folderName == "" {
-					folderName += "trades"
-				} else {
-					folderName += "_trades"
-				}
-			}
+			folderName := p.generateTicksFolderName(par.quotes, par.trades)
 
 			savePath := path.Join(p.path, "ticks", folderName, par.symbol, par.date.Format(tickfilelayout)+".json")
 
@@ -546,7 +617,7 @@ LOOP:
 			if err != nil {
 				switch errors.Cause(err).(type) {
 				case *ErrEmptyResponse:
-					err = p.saveTicksToFile(ticks, savePath)
+					err = p.saveTicksToFile(&ticks, savePath)
 					if err != nil {
 						errorsChan <- err
 						return
@@ -561,7 +632,7 @@ LOOP:
 				}
 			}
 
-			err = p.saveTicksToFile(ticks, savePath)
+			err = p.saveTicksToFile(&ticks, savePath)
 
 			if err != nil {
 				errorsChan <- err
@@ -573,6 +644,22 @@ LOOP:
 		}
 
 	}
+}
+
+func (*JsonStorage) generateTicksFolderName(quotes bool, trades bool) string {
+	folderName := ""
+	if quotes {
+		folderName += "quotes"
+	}
+	if trades {
+		if folderName != "" {
+			folderName += "_trades"
+		} else {
+			folderName += "trades"
+		}
+	}
+
+	return folderName
 }
 
 func (p *JsonStorage) saveTicksToFile(ticks *TickArray, savePath string) error {
@@ -622,7 +709,7 @@ func (*JsonStorage) readTicksFromFile(path string) (*TickArray, error) {
 
 }
 
-func (p *JsonStorage) getLoadedTickDates(pth string) ([]time.Time, error) {
+func (p *JsonStorage) getStoredTickDates(pth string) ([]time.Time, error) {
 	var listed []time.Time
 	files, err := ioutil.ReadDir(pth)
 	if err != nil {
@@ -645,8 +732,4 @@ func (p *JsonStorage) getLoadedTickDates(pth string) ([]time.Time, error) {
 
 	return listed, nil
 
-}
-
-func (p *JsonStorage) updateIntradayCandles(minutes int, s string, dRange *DateRange) error {
-	return nil
 }
