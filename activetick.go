@@ -8,7 +8,6 @@ import (
 	"strings"
 	"fmt"
 	"github.com/pkg/errors"
-	"math"
 )
 
 const (
@@ -80,7 +79,14 @@ func (a ActiveTick) GetCandles(symbol string, timeFrame string, dRange DateRange
 
 func (a ActiveTick) GetTicks(symbol string, dRange DateRange, quotes bool, trades bool) (*TickArray, error) {
 	if !quotes && !trades {
-		return nil, &ErrWrongRequest{"Should be selected trades, quotes or both"}
+		err := ErrWrongRequest{"Should be selected trades, quotes or both"}
+		params := struct {
+			symbol string
+			dRange DateRange
+			quotes bool
+			trades bool
+		}{symbol, dRange, quotes, trades}
+		return nil, errors.Wrapf(&err, "GetTicks(%v)", params)
 	}
 
 	q, t := 1, 1
@@ -126,17 +132,19 @@ func (a ActiveTick) getRawData(uri string) (string, error) {
 		content, err := getResponse(url)
 
 		if err != nil {
-			switch err.(type) {
+			switch errors.Cause(err).(type) {
 			case *ErrUnexpectedResponseCode:
-				return "", err
+				return "", errors.Wrapf(err, "getRawData(%v)", uri)
 			case *ErrWrongRequest:
-				return "", err
+				return "", errors.Wrapf(err, "getRawData(%v)", uri)
+			case *ErrEmptyResponse:
+				return "", errors.Wrapf(err, "getRawData(%v)", uri)
 			case *ErrDatasourceNotConnected:
-				return "", err
+				return "", errors.Wrapf(err, "getRawData(%v)", uri)
 
 			default:
 				if tries > a.tries {
-					return "", err
+					return "", errors.Wrapf(err, "getRawData(%v) tries: %v", uri, tries)
 				}
 				continue
 			}
@@ -173,11 +181,11 @@ func getResponse(url string) (string, error) {
 	content_s := string(content)
 
 	if strings.HasPrefix(content_s, "0") {
-		fmt.Println(content_s)
+		fmt.Println("Prefix: " + content_s)
 		if strings.Contains(content_s, "client is not connected") {
 			return "", &ErrDatasourceNotConnected{"ActiveTick"}
 		}
-		return "", &ErrWrongRequest{url}
+		return "", &ErrEmptyResponse{url}
 	}
 	return string(content_s), err
 
@@ -324,10 +332,10 @@ func parseTickLine(s []string) (*Tick, error) {
 		*datetime,
 		"",
 		"",
-		math.NaN(),
-		math.NaN(),
-		0,
-		0,
+		-1,
+		-1,
+		-1,
+		-1,
 		"",
 		cond1,
 		cond2,
@@ -372,8 +380,8 @@ func parseQuoteLine(s []string) (*Tick, error) {
 	tick := Tick{
 		true,
 		false,
-		math.NaN(),
-		0,
+		-1,
+		-1,
 		"",
 		*datetime,
 		bidExch,

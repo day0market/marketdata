@@ -6,7 +6,7 @@ import (
 
 type ErrUnexpectedResponseCode struct {
 	code uint16
-	url string
+	url  string
 }
 
 func (e *ErrUnexpectedResponseCode) Error() string {
@@ -32,6 +32,14 @@ func (e *ErrWrongRequest) Error() string {
 
 func (e *ErrWrongRequest) Temporal() bool {
 	return false
+}
+
+type ErrEmptyResponse struct {
+	request string
+}
+
+func (e *ErrEmptyResponse) Error() string {
+	return "Got empty response from request: " + e.request
 }
 
 type ErrDatasourceNotConnected struct {

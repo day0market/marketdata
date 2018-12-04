@@ -1,6 +1,9 @@
 package marketdata
 
-import "os"
+import (
+	"os"
+	"time"
+)
 
 func fileExists(path string) bool {
 	if _, err := os.Stat(path); os.IsNotExist(err) {
@@ -17,4 +20,9 @@ func createDirIfNotExists(dirPath string) error {
 	}
 
 	return nil
+}
+
+func timeOnTheFly(year int, mounth int, day int) time.Time {
+	t := time.Date(year, time.Month(mounth), day, 0, 0, 0, 0, time.UTC)
+	return t
 }

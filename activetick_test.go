@@ -5,7 +5,6 @@ import (
 	"time"
 	"fmt"
 	"github.com/stretchr/testify/assert"
-	"math"
 )
 
 func mockActiveTick() *ActiveTick {
@@ -121,15 +120,15 @@ func TestActiveTick_GetTicks(t *testing.T) {
 
 	for _, tk := range *ticks {
 		if tk.HasQuote {
-			assert.True(t, math.IsNaN(tk.LastPrice))
-			assert.False(t, math.IsNaN(tk.BidPrice))
-			assert.False(t, math.IsNaN(tk.AskPrice))
+			assert.True(t,  tk.LastPrice==-1)
+			assert.False(t, tk.BidPrice==-1)
+			assert.False(t, tk.AskPrice==-1)
 			continue
 		}
 		if tk.HasTrade {
-			assert.False(t, math.IsNaN(tk.LastPrice))
-			assert.True(t, math.IsNaN(tk.BidPrice))
-			assert.True(t, math.IsNaN(tk.AskPrice))
+			assert.False(t, tk.LastPrice==-1)
+			assert.True(t,  tk.BidPrice==-1)
+			assert.True(t,  tk.AskPrice==-1)
 
 		}
 	}

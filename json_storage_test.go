@@ -7,12 +7,8 @@ import (
 	"time"
 	"fmt"
 	"path"
+	"io/ioutil"
 )
-
-func timeOnTheFly(year int, mounth int, day int) time.Time {
-	t := time.Date(year, time.Month(mounth), day, 0, 0, 0, 0, time.UTC)
-	return t
-}
 
 func getSymbolMetaMock() *JsonSymbolMeta {
 	storedDates := []time.Time{
@@ -37,6 +33,28 @@ func getSymbolMetaMock() *JsonSymbolMeta {
 
 	return &symbMeta
 
+}
+
+func TestJsonSymbolMeta_getEmptyDates(t *testing.T) {
+	jsonMeta := JsonSymbolMeta{}
+	rng := DateRange{timeOnTheFly(2010, 1, 1), timeOnTheFly(2012, 1, 1)}
+
+	emptyDates, err := jsonMeta.getEmptyDates(&rng)
+	if err != nil {
+		fmt.Println(err)
+		t.Fatal(err)
+	}
+
+	emptyDatesSet := make(map[time.Time]struct{})
+	for _, d := range emptyDates {
+		_, ok := emptyDatesSet[d]
+		if ok {
+			t.Fatal("Duplicate date", d)
+		} else {
+			emptyDatesSet[d] = struct{}{}
+		}
+	}
+	fmt.Println(emptyDates)
 }
 
 func TestJsonSymbolMeta_getEmptyRanges(t *testing.T) {
@@ -179,6 +197,7 @@ func TestJsonStorage_findDailyRangeToDownload(t *testing.T) {
 func TestJsonStorage_ensureFolder(t *testing.T) {
 	defer os.RemoveAll("./test_storage")
 	s := JsonStorage{
+		3,
 		"./test_storage",
 		NewActiveTick(5000, "localhost", 2),
 	}
@@ -214,6 +233,7 @@ func TestJsonStorage_saveCandlesToFile(t *testing.T) {
 	}
 
 	storage := JsonStorage{
+		3,
 		"./test_data",
 		at,
 	}
@@ -238,6 +258,7 @@ func TestJsonStorage_saveAndLoadCandles(t *testing.T) {
 	}
 
 	storage := JsonStorage{
+		3,
 		"./test_data",
 		at,
 	}
@@ -267,6 +288,7 @@ func TestJsonStorage_updateDailyCandles(t *testing.T) {
 	createDirIfNotExists(testDir)
 
 	storage := JsonStorage{
+		3,
 		testDir,
 		at,
 	}
@@ -305,5 +327,133 @@ func TestJsonStorage_updateDailyCandles(t *testing.T) {
 
 	for i, v := range *datasourceCandles {
 		assert.Equal(t, *(*candles)[i], *v)
+	}
+}
+
+func TestJsonStorage_updateTicks(t *testing.T) {
+	testDir := "./test_data/json_storage"
+	os.RemoveAll(testDir)
+
+	at := NewActiveTick(0, "207.154.204.20", 3)
+	createDirIfNotExists(testDir)
+
+	storage := JsonStorage{
+		5,
+		testDir,
+		at,
+	}
+
+	start := timeOnTheFly(2018, 10, 1)
+	end := timeOnTheFly(2018, 10, 15)
+
+	range1 := DateRange{start, end}
+
+	err := storage.updateTicks("GJH", &range1, true, true)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	folderSymbol := path.Join(testDir, "ticks/quotes_trades/GJH")
+
+	// Map files mod times. Request again bigger range. Files that already stored shouldn't be requested again
+
+	modTimes := make(map[string]time.Time)
+
+	pathMeta := path.Join(testDir, "ticks/quotes_trades/.meta", "GJH.json")
+	fi, err:= os.Stat(pathMeta)
+	if err!=nil{
+		t.Fatal(err)
+	}
+	metaModTime := fi.ModTime()
+
+	files, err := ioutil.ReadDir(folderSymbol)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, f := range files {
+		if f.IsDir() {
+			continue
+		}
+		modTimes[f.Name()] = f.ModTime()
+	}
+
+	start = timeOnTheFly(2018, 9, 25)
+	end = timeOnTheFly(2018, 10, 18)
+
+	range1 = DateRange{start, end}
+
+	err = storage.updateTicks("GJH", &range1, true, true)
+
+	files, err = ioutil.ReadDir(folderSymbol)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, f := range files {
+		if f.IsDir() {
+			continue
+		}
+		modTimeExpected, ok := modTimes[f.Name()]
+
+		if !ok {
+			continue
+		}
+
+		assert.Equal(t, f.ModTime(), modTimeExpected)
+	}
+
+	fi, err = os.Stat(pathMeta)
+	if err!=nil{
+		t.Fatal(err)
+	}
+
+	assert.True(t, fi.ModTime().After(metaModTime)) // Check if update time of metafile changed
+
+	// Check if we have some quotes that ActiveTick gives us
+
+	for {
+		if start.After(end) {
+			break
+		}
+
+		if start.Weekday() == 6 || start.Weekday() == 0 {
+			start = start.AddDate(0, 0, 1)
+			continue
+		}
+
+		dateFileName := path.Join(folderSymbol, start.Format(tickfilelayout)+".json")
+		storedTicks, err := storage.readTicksFromFile(dateFileName)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		rng := DateRange{
+			time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, time.UTC),
+			time.Date(start.Year(), start.Month(), start.Day(), 23, 59, 59, 0, time.UTC),
+		}
+		atTicks, err := at.GetTicks("GJH", rng, true, true)
+		if err != nil {
+			t.Fatal(err)
+
+		}
+
+		for i, v := range *storedTicks {
+			assert.Equal(t, v.Datetime, (*atTicks)[i].Datetime)
+		}
+
+		start = start.AddDate(0, 0, 1)
+
+	}
+
+}
+
+func TestJsonStorage_getLoadedTickDates(t *testing.T) {
+	storage := JsonStorage{}
+	dates, err := storage.getLoadedTickDates("C:\\Users\\alex1\\go\\src\\alex\\marketdata\\test_data\\json_storage\\ticks\\GJH")
+	fmt.Println(err)
+	for _, d := range dates {
+		fmt.Println(d.Format("2006-01-02"))
 	}
 }
