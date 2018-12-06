@@ -29,7 +29,10 @@ func getSymbolMetaMock() *JsonSymbolMeta {
 		"TEST",
 		"D",
 		storedDates,
+		true,
 	}
+
+	symbMeta.save("test_data/daily_ranges/candles/day/.meta/TEST.json")
 
 	return &symbMeta
 
@@ -41,7 +44,6 @@ func TestJsonSymbolMeta_getEmptyDates(t *testing.T) {
 
 	emptyDates, err := jsonMeta.getEmptyDates(&rng)
 	if err != nil {
-		fmt.Println(err)
 		t.Fatal(err)
 	}
 
@@ -54,10 +56,72 @@ func TestJsonSymbolMeta_getEmptyDates(t *testing.T) {
 			emptyDatesSet[d] = struct{}{}
 		}
 	}
-	fmt.Println(emptyDates)
+
+	jsonMeta = JsonSymbolMeta{}
+	jsonMeta.HasWeekends = true
+
+	listedDates := []time.Time{
+		timeOnTheFly(2018, 11, 28),
+		timeOnTheFly(2018, 11, 30),
+		timeOnTheFly(2018, 11, 23),
+		timeOnTheFly(2018, 11, 19),
+	}
+
+	jsonMeta.ListedDates = listedDates
+
+	rng = DateRange{timeOnTheFly(2018, 11, 15), timeOnTheFly(2018, 12, 1)}
+
+	emptyDates, err = jsonMeta.getEmptyDates(&rng)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expecting := []time.Time{
+		timeOnTheFly(2018, 11, 15),
+		timeOnTheFly(2018, 11, 16),
+		timeOnTheFly(2018, 11, 20),
+		timeOnTheFly(2018, 11, 21),
+		timeOnTheFly(2018, 11, 22),
+		timeOnTheFly(2018, 11, 26),
+		timeOnTheFly(2018, 11, 27),
+		timeOnTheFly(2018, 11, 29),
+	}
+
+	for i, v := range emptyDates {
+		assert.Equal(t, v, expecting[i])
+	}
+
+	jsonMeta.HasWeekends = false
+
+	emptyDates, err = jsonMeta.getEmptyDates(&rng)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expecting = []time.Time{
+		timeOnTheFly(2018, 11, 15),
+		timeOnTheFly(2018, 11, 16),
+		timeOnTheFly(2018, 11, 17),
+		timeOnTheFly(2018, 11, 18),
+		timeOnTheFly(2018, 11, 20),
+		timeOnTheFly(2018, 11, 21),
+		timeOnTheFly(2018, 11, 22),
+		timeOnTheFly(2018, 11, 24),
+		timeOnTheFly(2018, 11, 25),
+		timeOnTheFly(2018, 11, 26),
+		timeOnTheFly(2018, 11, 27),
+		timeOnTheFly(2018, 11, 29),
+		timeOnTheFly(2018, 12, 1),
+	}
+
+	for i, v := range emptyDates {
+		assert.Equal(t, v, expecting[i])
+	}
+
 }
 
 func TestJsonSymbolMeta_getEmptyRanges(t *testing.T) {
+	//Todo not passed
 
 	reqRange := DateRange{
 		timeOnTheFly(2009, 12, 15),
@@ -134,19 +198,29 @@ func TestJsonSymbolMeta_Save(t *testing.T) {
 }
 
 func TestJsonStorage_findDailyRangeToDownload(t *testing.T) {
-	//Todo
-	/*storage := JsonStorage{
-		"./test_path",
-		NewActiveTick(5000, "localhost", 2),
+	at := NewActiveTick(0, "207.154.204.20", 3)
+	testDir := "./test_data/daily_ranges"
+	testSymbol := "TEST"
+	loc, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	symbolMeta := getSymbolMetaMock()
+	storage := JsonStorage{
+		5,
+		testDir,
+		at,
+		loc,
+		true,
+	}
+
+	getSymbolMetaMock()
 	range1 := DateRange{
 		timeOnTheFly(2010, 1, 30),
 		timeOnTheFly(2010, 5, 30),
 	}
 
-	actual1, err := storage.findDailyRangeToDownload(range1, symbolMeta)
+	actual1, err := storage.findDailyRangeToDownload(&range1, testSymbol)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,14 +230,14 @@ func TestJsonStorage_findDailyRangeToDownload(t *testing.T) {
 		timeOnTheFly(2010, 5, 30),
 	}
 
-	assert.Equal(t, expected1, actual1)
+	assert.Equal(t, expected1, *actual1)
 
 	range2 := DateRange{
 		timeOnTheFly(2009, 1, 30),
 		timeOnTheFly(2009, 5, 30),
 	}
 
-	actual2, err := storage.findDailyRangeToDownload(range2, symbolMeta)
+	actual2, err := storage.findDailyRangeToDownload(&range2, testSymbol)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,37 +246,43 @@ func TestJsonStorage_findDailyRangeToDownload(t *testing.T) {
 		timeOnTheFly(2010, 1, 30),
 	}
 
-	assert.Equal(t, expected2, actual2)
+	assert.Equal(t, expected2, *actual2)
 
 	range3 := DateRange{
 		timeOnTheFly(2010, 1, 15),
 		timeOnTheFly(2010, 1, 20),
 	}
 
-	_, err = storage.findDailyRangeToDownload(range3, symbolMeta)
+	_, err = storage.findDailyRangeToDownload(&range3, testSymbol)
 	if err == nil {
-		t.Fatal("should be error: errNothingToDownload")
+		t.Fatal("should be error: ErrNothingToDownload")
 	} else {
 		switch err.(type) {
-		case *errNothingToDownload:
+		case *ErrNothingToDownload:
 			fmt.Println("Got expected error. OK!")
 			return
 		default:
-			t.Fatal("should be error: errNothingToDownload")
+			t.Fatal("should be error: ErrNothingToDownload")
 		}
-	}*/
+	}
 
 }
 
 func TestJsonStorage_ensureFolder(t *testing.T) {
 	defer os.RemoveAll("./test_storage")
+	loc, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		t.Fatal(err)
+	}
 	s := JsonStorage{
 		3,
 		"./test_storage",
 		NewActiveTick(5000, "localhost", 2),
+		loc,
+		true,
 	}
 
-	err := s.createFolders()
+	err = s.createFolders()
 
 	assert.Nil(t, err)
 
@@ -232,10 +312,17 @@ func TestJsonStorage_saveCandlesToFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	loc, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	storage := JsonStorage{
 		3,
 		"./test_data",
 		at,
+		loc,
+		true,
 	}
 
 	err = storage.saveCandlesToFile(&candles, "./test_data/save_test.json")
@@ -257,10 +344,17 @@ func TestJsonStorage_saveAndLoadCandles(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	loc, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	storage := JsonStorage{
 		3,
 		"./test_data",
 		at,
+		loc,
+		true,
 	}
 
 	err = storage.saveCandlesToFile(&candles, "./test_data/TEST_read_write.json")
@@ -287,17 +381,24 @@ func TestJsonStorage_updateDailyCandles(t *testing.T) {
 	at := NewActiveTick(0, "207.154.204.20", 3)
 	createDirIfNotExists(testDir)
 
+	loc, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	storage := JsonStorage{
 		3,
 		testDir,
 		at,
+		loc,
+		true,
 	}
 
 	//storage.createFolders()
 
 	range1 := DateRange{timeOnTheFly(2010, 1, 1), timeOnTheFly(2011, 1, 1)}
 
-	err := storage.updateDailyCandles("SPY", &range1)
+	err = storage.updateDailyCandles("SPY", &range1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -337,15 +438,21 @@ func TestJsonStorage_updateTicks(t *testing.T) {
 	at := NewActiveTick(0, "207.154.204.20", 3)
 	createDirIfNotExists(testDir)
 
+	loc, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	storage := JsonStorage{
 		5,
 		testDir,
 		at,
+		loc,
+		true,
 	}
 
 	start := timeOnTheFly(2018, 10, 1)
 	end := timeOnTheFly(2018, 10, 15)
-
 
 	params := TickUpdateParams{
 		"GJH",
@@ -353,10 +460,9 @@ func TestJsonStorage_updateTicks(t *testing.T) {
 		end,
 		true,
 		true,
-		true,
 	}
 
-	err := storage.UpdateSymbolTicks(params)
+	err = storage.UpdateSymbolTicks(params)
 
 	if err != nil {
 		t.Fatal(err)
@@ -369,8 +475,8 @@ func TestJsonStorage_updateTicks(t *testing.T) {
 	modTimes := make(map[string]time.Time)
 
 	pathMeta := path.Join(testDir, "ticks/quotes_trades/.meta", "GJH.json")
-	fi, err:= os.Stat(pathMeta)
-	if err!=nil{
+	fi, err := os.Stat(pathMeta)
+	if err != nil {
 		t.Fatal(err)
 	}
 	metaModTime := fi.ModTime()
@@ -390,13 +496,10 @@ func TestJsonStorage_updateTicks(t *testing.T) {
 	start = timeOnTheFly(2018, 9, 25)
 	end = timeOnTheFly(2018, 10, 18)
 
-
-
 	params = TickUpdateParams{
 		"GJH",
 		start,
 		end,
-		true,
 		true,
 		true,
 	}
@@ -422,7 +525,7 @@ func TestJsonStorage_updateTicks(t *testing.T) {
 	}
 
 	fi, err = os.Stat(pathMeta)
-	if err!=nil{
+	if err != nil {
 		t.Fatal(err)
 	}
 

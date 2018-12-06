@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"sync"
 	"context"
-
 	"strings"
 )
 
@@ -27,69 +26,20 @@ type tickRequestParams struct {
 	symbol string
 }
 
-type errNothingToDownload struct {
+type ErrNothingToDownload struct {
 }
 
-func (*errNothingToDownload) Error() string {
+func (*ErrNothingToDownload) Error() string {
 	return "Nothing to download"
 }
 
-// Public request params
-type TickUpdateParams struct {
-	Symbol         string
-	FromDate       time.Time
-	ToDate         time.Time
-	Quotes         bool
-	Trades         bool
-	UpdateWeekends bool
+type ErrSymbolDataNotFound struct {
+	symbol string
+	path   string
 }
 
-func (p *TickUpdateParams) checkErrors() error {
-	if !p.Trades && !p.Quotes {
-		return errors.New("Wrong parameters. Should be selected trades, quotes or both")
-	}
-
-	if p.FromDate.After(p.ToDate) {
-		return errors.New("From date should be less than to date")
-	}
-
-	if p.Symbol == "" {
-		return errors.New("Symbol not specified")
-	}
-
-	return nil
-
-}
-
-func (p *TickUpdateParams) modifyTimes() {
-	p.ToDate = time.Date(p.ToDate.Year(), p.ToDate.Month(), p.ToDate.Day(), 0, 0, 0, 0, time.UTC)
-	p.FromDate = time.Date(p.FromDate.Year(), p.FromDate.Month(), p.FromDate.Day(), 0, 0, 0, 0, time.UTC)
-}
-
-type CandlesUpdateParams struct {
-	Symbol         string
-	TimeFrame      string
-	FromDate       time.Time
-	ToDate         time.Time
-	UpdateWeekends bool
-}
-
-func (p *CandlesUpdateParams) modifyTimes() {
-	p.ToDate = time.Date(p.ToDate.Year(), p.ToDate.Month(), p.ToDate.Day(), 0, 0, 0, 0, time.UTC)
-	p.FromDate = time.Date(p.FromDate.Year(), p.FromDate.Month(), p.FromDate.Day(), 0, 0, 0, 0, time.UTC)
-}
-
-func (p *CandlesUpdateParams) checkErrors() error {
-	if p.FromDate.After(p.ToDate) {
-		return errors.New("From date should be less than to date")
-	}
-
-	if p.Symbol == "" {
-		return errors.New("Symbol not specified")
-	}
-
-	//Todo check timeframe here
-	return nil
+func (e *ErrSymbolDataNotFound) Error() string {
+	return fmt.Sprintf("%v data not found in path: %v", e.symbol, e.path)
 }
 
 // Symbol meta information *************************************************
@@ -98,6 +48,7 @@ type JsonSymbolMeta struct {
 	Symbol      string
 	TimeFrame   string
 	ListedDates []time.Time
+	HasWeekends bool
 }
 
 func (j *JsonSymbolMeta) Load(loadPath string) error {
@@ -121,10 +72,11 @@ func (j *JsonSymbolMeta) Load(loadPath string) error {
 
 }
 
-func (j *JsonSymbolMeta) datesSet() map[time.Time]struct{} {
-	dates := make(map[time.Time]struct{})
+func (j *JsonSymbolMeta) datesSet() map[int64]struct{} {
+	// To avoid timezone issues we put in dateset unix times.
+	dates := make(map[int64]struct{})
 	for _, v := range j.ListedDates {
-		dates[v] = struct{}{}
+		dates[v.UTC().Unix()] = struct{}{}
 	}
 	return dates
 }
@@ -136,7 +88,7 @@ func (j *JsonSymbolMeta) getEmptyRanges(rng *DateRange) ([]*DateRange, error) {
 	}
 
 	if len(emptyDates) == 0 {
-		return nil, nil //ToDo should I return error here
+		return nil, &ErrNothingToDownload{}
 	}
 
 	if len(emptyDates) == 1 {
@@ -151,19 +103,31 @@ func (j *JsonSymbolMeta) getEmptyRanges(rng *DateRange) ([]*DateRange, error) {
 	start, end := emptyDates[0], emptyDates[1]
 	var emptyRanges []*DateRange
 
-	for i, v := range emptyDates {
+	fmt.Println(emptyDates)
+	min_split := 1
+	if j.HasWeekends {
+		min_split = 3
+	}
+
+	for i := range emptyDates {
 		if i < 2 {
 			continue
 		}
 
-		delta := int(v.Sub(end).Hours() / 24)
-		if delta > 1 {
-			rng := DateRange{start, end}
+		prev := emptyDates[i-1]
+		curr := emptyDates[i]
+		delta := int(curr.Sub(prev).Hours() / 24)
+		fmt.Println(delta, prev, curr)
+
+		if delta > min_split {
+			rng := DateRange{start, prev}
 			emptyRanges = append(emptyRanges, &rng)
-			start, end = v, v
+			start = curr
+			fmt.Println(emptyRanges)
 			continue
 		}
-		end = v
+		end = curr
+		fmt.Println(emptyRanges)
 
 	}
 
@@ -180,7 +144,7 @@ func (j *JsonSymbolMeta) getEmptyDates(rng *DateRange) ([]time.Time, error) {
 	datesSet := j.datesSet()
 
 	if rng.from.Equal(rng.to) {
-		if _, ok := datesSet[rng.from]; ok {
+		if _, ok := datesSet[rng.from.UTC().Unix()]; ok {
 			return emptyDates, nil
 		}
 		emptyDates = append(emptyDates, rng.from)
@@ -191,7 +155,11 @@ func (j *JsonSymbolMeta) getEmptyDates(rng *DateRange) ([]time.Time, error) {
 		if last.After(rng.to) {
 			break
 		}
-		_, ok := datesSet[last]
+		if j.HasWeekends && (last.Weekday() == 0 || last.Weekday() == 6) {
+			last = last.AddDate(0, 0, 1)
+			continue
+		}
+		_, ok := datesSet[last.UTC().Unix()]
 
 		if !ok {
 			emptyDates = append(emptyDates, last)
@@ -200,6 +168,7 @@ func (j *JsonSymbolMeta) getEmptyDates(rng *DateRange) ([]time.Time, error) {
 		last = last.AddDate(0, 0, 1)
 
 	}
+	fmt.Println(emptyDates)
 
 	return emptyDates, nil
 
@@ -269,6 +238,8 @@ type JsonStorage struct {
 	updateWorkers int
 	path          string
 	provider      HistoryProvider
+	timezone      *time.Location
+	hasWeekends   bool
 }
 
 func (p *JsonStorage) createFolders() error {
@@ -299,11 +270,13 @@ func (p *JsonStorage) GetStoredTicks(symbol string, dRange DateRange) (*TickArra
 
 func (p *JsonStorage) UpdateSymbolCandles(params CandlesUpdateParams) error {
 	err := params.checkErrors()
-	params.modifyTimes()
 
 	if err != nil {
 		return err
 	}
+
+	params.modifyTimes()
+
 	dRange := DateRange{
 		params.FromDate, params.ToDate,
 	}
@@ -351,12 +324,12 @@ func (p *JsonStorage) saveCandlesToFile(candles *CandleArray, savePath string) e
 	return err
 }
 
-func (*JsonStorage) readCandlesFromFile(path string) (*CandleArray, error) {
-	if !fileExists(path) {
-		return nil, nil //Todo what error?
+func (*JsonStorage) readCandlesFromFile(pth string) (*CandleArray, error) {
+	if !fileExists(pth) {
+		return nil, &ErrSymbolDataNotFound{"", pth}
 	}
 
-	jsonFile, err := os.Open(path)
+	jsonFile, err := os.Open(pth)
 
 	if err != nil {
 		return nil, err
@@ -383,7 +356,7 @@ func (p *JsonStorage) updateDailyCandles(s string, dRange *DateRange) error {
 	downloadRange, err := p.findDailyRangeToDownload(dRange, s)
 	if err != nil {
 		switch err.(type) {
-		case *errNothingToDownload:
+		case *ErrNothingToDownload:
 			return nil
 		default:
 			return err
@@ -436,7 +409,7 @@ func (p *JsonStorage) findDailyRangeToDownload(dRange *DateRange, symbol string)
 
 	if firstListed.Unix() < dRange.from.Unix() && lastListed.Unix() > dRange.to.Unix() && ok1 && ok2 {
 		// If we already have all candles in this date range just return without errors
-		return nil, &errNothingToDownload{}
+		return nil, &ErrNothingToDownload{}
 	}
 
 	if dRange.from.Unix() > firstListed.Unix() && ok1 {
@@ -467,6 +440,7 @@ func (p *JsonStorage) genNewDailySymbolMeta(symbol string, dateRange *DateRange)
 		symbol,
 		"D",
 		listedDates,
+		p.hasWeekends,
 	}
 
 	return &symbolMeta
@@ -482,9 +456,17 @@ func (p *JsonStorage) updateIntradayCandles(minutes int, s string, dRange *DateR
 	return nil
 }
 
+/* Updates symbol ticks in given time range. Begin and end dates are included. Not matter what is time of the day
+set. For example if end date is 2012-01-12 9:45AM we download full day of 2012-01-12. If end date is today, we cut range
+and update everything until yesterday. Today is always ignored. We use timezone to check this
+*/
 func (p *JsonStorage) UpdateSymbolTicks(params TickUpdateParams) error {
 	err := params.checkErrors()
-	params.modifyTimes()
+	if err != nil {
+		return err
+	}
+
+	err = params.modifyTimes(p.timezone)
 	if err != nil {
 		return err
 	}
@@ -493,6 +475,8 @@ func (p *JsonStorage) UpdateSymbolTicks(params TickUpdateParams) error {
 	metaPath := path.Join(p.path, "ticks", folderName, ".meta", params.Symbol+".json")
 
 	jsonMeta := loadMetaIfExists(metaPath)
+	jsonMeta.HasWeekends = p.hasWeekends
+
 	dRange := DateRange{params.FromDate, params.ToDate}
 
 	emptyDates, err := jsonMeta.getEmptyDates(&dRange)
@@ -502,7 +486,7 @@ func (p *JsonStorage) UpdateSymbolTicks(params TickUpdateParams) error {
 	}
 
 	if emptyDates == nil {
-		return errors.Wrapf(&errNothingToDownload{}, "UpdateSymbolTicks() Symbol: %v dRange: %v", params.Symbol, &dRange)
+		return errors.Wrapf(&ErrNothingToDownload{}, "UpdateSymbolTicks() Symbol: %v dRange: %v", params.Symbol, &dRange)
 	}
 
 	wg := &sync.WaitGroup{}
@@ -682,12 +666,12 @@ func (p *JsonStorage) saveTicksToFile(ticks *TickArray, savePath string) error {
 	return err
 }
 
-func (*JsonStorage) readTicksFromFile(path string) (*TickArray, error) {
-	if !fileExists(path) {
-		return nil, nil //Todo what error?
+func (*JsonStorage) readTicksFromFile(pth string) (*TickArray, error) {
+	if !fileExists(pth) {
+		return nil, &ErrSymbolDataNotFound{"", pth}
 	}
 
-	jsonFile, err := os.Open(path)
+	jsonFile, err := os.Open(pth)
 
 	if err != nil {
 		return nil, err
@@ -727,6 +711,8 @@ func (p *JsonStorage) getStoredTickDates(pth string) ([]time.Time, error) {
 			// Todo log???
 			continue
 		}
+
+		t = time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, p.timezone)
 		listed = append(listed, t)
 	}
 

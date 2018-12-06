@@ -55,4 +55,3 @@ type QuoteSnapshot struct {
 
 type CandleArray []*Candle
 type TickArray []*Tick
-

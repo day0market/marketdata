@@ -1,1 +1,72 @@
-[{"Open":271.6,"High":273.73,"Low":270.38,"Close":273.37,"AdjClose":273.37,"Volume":89496311,"OpenInterest":0,"Datetime":"2018-11-01T00:00:00Z"},{"Open":274.75,"High":275.23,"Low":269.59,"Close":271.8,"AdjClose":271.8,"Volume":102791642,"OpenInterest":0,"Datetime":"2018-11-02T00:00:00Z"},{"Open":272.42,"High":274.01,"Low":271.3431,"Close":273.47,"AdjClose":273.47,"Volume":57701904,"OpenInterest":0,"Datetime":"2018-11-05T00:00:00Z"},{"Open":273.32,"High":275.3,"Low":273.25,"Close":275.11,"AdjClose":275.11,"Volume":49516519,"OpenInterest":0,"Datetime":"2018-11-06T00:00:00Z"},{"Open":277.56,"High":281.1,"Low":277.08,"Close":281,"AdjClose":281,"Volume":86577746,"OpenInterest":0,"Datetime":"2018-11-07T00:00:00Z"},{"Open":280.1,"High":281.22,"Low":272.7521,"Close":280.48,"AdjClose":280.48,"Volume":56696957,"OpenInterest":0,"Datetime":"2018-11-08T00:00:00Z"},{"Open":279.03,"High":279.24,"Low":276.18,"Close":277.82,"AdjClose":277.82,"Volume":82951554,"OpenInterest":0,"Datetime":"2018-11-09T00:00:00Z"}]
+[
+  {
+    "Open": 271.6,
+    "High": 273.73,
+    "Low": 270.38,
+    "Close": 273.37,
+    "AdjClose": 273.37,
+    "Volume": 89496311,
+    "OpenInterest": 0,
+    "Datetime": "2018-11-01T00:00:00Z"
+  },
+  {
+    "Open": 274.75,
+    "High": 275.23,
+    "Low": 269.59,
+    "Close": 271.8,
+    "AdjClose": 271.8,
+    "Volume": 102791642,
+    "OpenInterest": 0,
+    "Datetime": "2018-11-02T00:00:00Z"
+  },
+  {
+    "Open": 272.42,
+    "High": 274.01,
+    "Low": 271.3431,
+    "Close": 273.47,
+    "AdjClose": 273.47,
+    "Volume": 57701904,
+    "OpenInterest": 0,
+    "Datetime": "2018-11-05T00:00:00Z"
+  },
+  {
+    "Open": 273.32,
+    "High": 275.3,
+    "Low": 273.25,
+    "Close": 275.11,
+    "AdjClose": 275.11,
+    "Volume": 49516519,
+    "OpenInterest": 0,
+    "Datetime": "2018-11-06T00:00:00Z"
+  },
+  {
+    "Open": 277.56,
+    "High": 281.1,
+    "Low": 277.08,
+    "Close": 281,
+    "AdjClose": 281,
+    "Volume": 86577746,
+    "OpenInterest": 0,
+    "Datetime": "2018-11-07T00:00:00Z"
+  },
+  {
+    "Open": 280.1,
+    "High": 281.22,
+    "Low": 272.7521,
+    "Close": 280.48,
+    "AdjClose": 280.48,
+    "Volume": 56696957,
+    "OpenInterest": 0,
+    "Datetime": "2018-11-08T00:00:00Z"
+  },
+  {
+    "Open": 279.03,
+    "High": 279.24,
+    "Low": 276.18,
+    "Close": 277.82,
+    "AdjClose": 277.82,
+    "Volume": 82951554,
+    "OpenInterest": 0,
+    "Datetime": "2018-11-09T00:00:00Z"
+  }
+]
