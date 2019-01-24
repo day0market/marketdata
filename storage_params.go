@@ -6,11 +6,19 @@ import (
 	"strconv"
 )
 
+type TimeOfDay struct{
+	Hour int
+	Minute int
+	Second int
+}
+
 // Public request params
 type TickUpdateParams struct {
 	Symbol   string
 	FromDate time.Time
 	ToDate   time.Time
+	StartTime TimeOfDay //We can request and store only particular time range of day. But if u mix requests if will give a mass in storage
+	EndTime TimeOfDay
 	Quotes   bool
 	Trades   bool
 }
@@ -21,7 +29,7 @@ func (p *TickUpdateParams) checkErrors() error {
 	}
 
 	if p.FromDate.After(p.ToDate) {
-		return errors.New("From date should be less than to date")
+		return errors.New("From date should be less than To date")
 	}
 
 	if p.Symbol == "" {
@@ -66,7 +74,7 @@ func (p *CandlesUpdateParams) modifyTimes() {
 
 func (p *CandlesUpdateParams) checkErrors() error {
 	if p.FromDate.After(p.ToDate) {
-		return errors.New("From date should be less than to date")
+		return errors.New("From date should be less than To date")
 	}
 
 	if p.Symbol == "" {

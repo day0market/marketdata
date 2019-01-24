@@ -19,7 +19,7 @@ type ErrParsingMarketData struct {
 }
 
 func (e *ErrParsingMarketData) Error() string {
-	return fmt.Sprintf("Can't parse raw string: %v to %v struct", e.raw, e.cls)
+	return fmt.Sprintf("Can't parse raw string: %v To %v struct", e.raw, e.cls)
 }
 
 type ErrWrongRequest struct {
@@ -39,7 +39,7 @@ type ErrEmptyResponse struct {
 }
 
 func (e *ErrEmptyResponse) Error() string {
-	return "Got empty response from request: " + e.request
+	return "Got empty response From request: " + e.request
 }
 
 type ErrDatasourceNotConnected struct {
@@ -54,7 +54,7 @@ type ErrNothingToParse struct {
 }
 
 func (e *ErrNothingToParse) Error() string {
-	return "Nothing to parse"
+	return "Nothing To parse"
 }
 
 type HistoryProvider interface {

@@ -39,8 +39,8 @@ func NewActiveTick(port uint16, host string, tries uint8) ActiveTick {
 
 func (a ActiveTick) GetCandles(symbol string, timeFrame string, dRange DateRange) (CandleArray, error) {
 
-	from := convertTimeToActiveTickFormat(dRange.from)
-	to := convertTimeToActiveTickFormat(dRange.to)
+	from := convertTimeToActiveTickFormat(dRange.From)
+	to := convertTimeToActiveTickFormat(dRange.To)
 
 	var uri string
 
@@ -59,7 +59,7 @@ func (a ActiveTick) GetCandles(symbol string, timeFrame string, dRange DateRange
 			return nil, err
 		}
 		if mins > 60 || mins < 1 {
-			return nil, errors.New("Intraday minutes should be from 1 to 60")
+			return nil, errors.New("Intraday minutes should be From 1 To 60")
 		}
 		uri = fmt.Sprintf("/barData?symbol=%v&historyType=0&intradayMinutes=%v&beginTime=%v&endTime=%v",
 			strings.ToUpper(symbol), timeFrame, from, to)
@@ -78,6 +78,7 @@ func (a ActiveTick) GetCandles(symbol string, timeFrame string, dRange DateRange
 }
 
 func (a ActiveTick) GetTicks(symbol string, dRange DateRange, quotes bool, trades bool) (TickArray, error) {
+
 	if !quotes && !trades {
 		err := ErrWrongRequest{"Should be selected trades, quotes or both"}
 		params := struct {
@@ -97,10 +98,11 @@ func (a ActiveTick) GetTicks(symbol string, dRange DateRange, quotes bool, trade
 		t = 0
 	}
 
-	from := convertTimeToActiveTickFormat(dRange.from)
-	to := convertTimeToActiveTickFormat(dRange.to)
+	from := convertTimeToActiveTickFormat(dRange.From)
+	to := convertTimeToActiveTickFormat(dRange.To)
 
 	uri := fmt.Sprintf("/tickData?symbol=%v&trades=%v&quotes=%v&beginTime=%v&endTime=%v", symbol, t, q, from, to)
+
 
 	rawData, err := a.getRawData(uri)
 
@@ -124,6 +126,7 @@ func (a ActiveTick) GetQuotesSnapshot(symbols []string) ([]QuoteSnapshot, error)
 
 func (a ActiveTick) getRawData(uri string) (string, error) {
 	url := a.baseurl + uri
+
 	var tries uint8
 
 	for {
@@ -207,7 +210,7 @@ func parseToCandlesList(raw string) (CandleArray, error) {
 				continue
 			}
 			return nil, &ErrParsingMarketData{l, "Candle"}
-			//return candles, errors.New(fmt.Sprintf("Can't parse to candle. Wrong string len: %v. Row: %q. Parsed: %v",
+			//return candles, errors.New(fmt.Sprintf("Can't parse To candle. Wrong string len: %v. Row: %q. Parsed: %v",
 			//	len(s), l, len(candles)))
 		}
 		if s[0] == "00000000000000" {
@@ -416,7 +419,7 @@ func getTickTime(s string) (*time.Time, error) {
 		return nil, &ErrParsingMarketData{"Can't extract ms: " + s, "Tick"}
 	}
 
-	ms_to_add := time.Duration(ms) * time.Second
+	ms_to_add := time.Duration(ms) * time.Microsecond
 	datetime = datetime.Add(ms_to_add)
 
 	return &datetime, nil

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"path"
 	"io/ioutil"
+	"sort"
 )
 
 func getSymbolMetaMock() *JsonSymbolMeta {
@@ -443,6 +444,9 @@ func TestJsonStorage_updateTicks(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	startTime := TimeOfDay{}
+	endTime := TimeOfDay{11, 10, 0}
+
 	storage := JsonStorage{
 		5,
 		testDir,
@@ -458,6 +462,8 @@ func TestJsonStorage_updateTicks(t *testing.T) {
 		"GJH",
 		start,
 		end,
+		startTime,
+		endTime,
 		true,
 		true,
 	}
@@ -500,6 +506,8 @@ func TestJsonStorage_updateTicks(t *testing.T) {
 		"GJH",
 		start,
 		end,
+		startTime,
+		endTime,
 		true,
 		true,
 	}
@@ -550,8 +558,8 @@ func TestJsonStorage_updateTicks(t *testing.T) {
 		}
 
 		rng := DateRange{
-			time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, time.UTC),
-			time.Date(start.Year(), start.Month(), start.Day(), 23, 59, 59, 0, time.UTC),
+			time.Date(start.Year(), start.Month(), start.Day(), startTime.Hour, startTime.Minute, startTime.Second, 0, time.UTC),
+			time.Date(start.Year(), start.Month(), start.Day(), endTime.Hour, endTime.Minute, endTime.Second, 0, time.UTC),
 		}
 		atTicks, err := at.GetTicks("GJH", rng, true, true)
 		if err != nil {
@@ -576,4 +584,72 @@ func TestJsonStorage_getLoadedTickDates(t *testing.T) {
 	for _, d := range dates {
 		fmt.Println(d.Format("2006-01-02"))
 	}
+}
+
+func TestJsonStorage_GetStoredTicks(t *testing.T) {
+	testDir := "./test_data/json_storage"
+	os.RemoveAll(testDir)
+
+	at := NewActiveTick(0, "207.154.204.20", 3)
+	createDirIfNotExists(testDir)
+
+	loc, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	startTime := TimeOfDay{}
+	endTime := TimeOfDay{11, 10, 0}
+
+	storage := JsonStorage{
+		5,
+		testDir,
+		at,
+		loc,
+		true,
+	}
+
+	start := timeOnTheFly(2018, 10, 1)
+	end := timeOnTheFly(2018, 10, 15)
+
+	params := TickUpdateParams{
+		"GJH",
+		start,
+		end,
+		startTime,
+		endTime,
+		true,
+		true,
+	}
+
+	err = storage.UpdateSymbolTicks(params)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ticks, err := storage.GetStoredTicks("GJH", DateRange{start, end}, true, true)
+
+	if err!=nil{
+		t.Fatal(err)
+	}
+
+	datesFound := 0
+	for i, t := range ticks{
+		if i==0{
+			continue
+		}
+
+		if t.Datetime.Weekday()!= ticks[i-1].Datetime.Weekday(){
+			datesFound++
+		}
+	}
+
+	fmt.Println(ticks[len(ticks)-1].Datetime)
+
+	sorted := sort.SliceIsSorted(ticks, func(i, j int) bool {
+		return ticks[i].Datetime.Unix() < ticks[j].Datetime.Unix()
+	})
+
+	assert.True(t, sorted)
 }

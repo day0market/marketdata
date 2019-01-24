@@ -10,7 +10,7 @@ type ErrParsingStoredCandles struct {
 }
 
 func (e *ErrParsingStoredCandles) Error() string {
-	return fmt.Sprintf("Can't parse %v to candle", e.entry)
+	return fmt.Sprintf("Can't parse %v To candle", e.entry)
 }
 
 type Storage interface {

@@ -6,13 +6,14 @@ import (
 )
 
 type DateRange struct {
-	from time.Time
-	to   time.Time
+	From time.Time
+	To   time.Time
 }
+
 
 func (d *DateRange) String() string {
 	l := "2006-01-02 15:04:05"
-	return fmt.Sprintf("From: %v To: %v", d.from.Format(l), d.to.Format(l))
+	return fmt.Sprintf("From: %v To: %v", d.From.Format(l), d.To.Format(l))
 }
 
 type Tick struct {
