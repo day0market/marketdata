@@ -3,13 +3,13 @@ package marketdata
 import (
 	"time"
 	"fmt"
+	"sort"
 )
 
 type DateRange struct {
 	From time.Time
 	To   time.Time
 }
-
 
 func (d *DateRange) String() string {
 	l := "2006-01-02 15:04:05"
@@ -19,6 +19,9 @@ func (d *DateRange) String() string {
 type Tick struct {
 	HasQuote bool
 	HasTrade bool
+
+	IsOpening bool
+	IsClosing bool
 
 	LastPrice float64
 	LastSize  int64
@@ -56,3 +59,10 @@ type QuoteSnapshot struct {
 
 type CandleArray []*Candle
 type TickArray []*Tick
+
+func (t TickArray) Sort() TickArray {
+	sort.SliceStable(t, func(i, j int) bool {
+		return t[i].Datetime.Unix() > t[j].Datetime.Unix()
+	})
+	return t
+}

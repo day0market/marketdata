@@ -199,7 +199,7 @@ func TestJsonSymbolMeta_Save(t *testing.T) {
 }
 
 func TestJsonStorage_findDailyRangeToDownload(t *testing.T) {
-	at := NewActiveTick(0, "207.154.204.20", 3)
+	at := mockActiveTick()
 	testDir := "./test_data/daily_ranges"
 	testSymbol := "TEST"
 	loc, err := time.LoadLocation("America/New_York")
@@ -278,7 +278,7 @@ func TestJsonStorage_ensureFolder(t *testing.T) {
 	s := JsonStorage{
 		3,
 		"./test_storage",
-		NewActiveTick(5000, "localhost", 2),
+		mockActiveTick(),
 		loc,
 		true,
 	}
@@ -305,7 +305,7 @@ func TestJsonStorage_readCandlesFromFile(t *testing.T) {
 func TestJsonStorage_saveCandlesToFile(t *testing.T) {
 	defer os.Remove("./test_data/save_test.json")
 
-	at := NewActiveTick(0, "207.154.204.20", 3)
+	at := mockActiveTick()
 	dRange := DateRange{timeOnTheFly(2010, 1, 1),
 		timeOnTheFly(2012, 5, 3)}
 	candles, err := at.GetCandles("SPY", "D", dRange)
@@ -337,7 +337,7 @@ func TestJsonStorage_saveCandlesToFile(t *testing.T) {
 func TestJsonStorage_saveAndLoadCandles(t *testing.T) {
 	defer os.Remove("./test_data/TEST_read_write.json")
 
-	at := NewActiveTick(0, "207.154.204.20", 3)
+	at := mockActiveTick()
 	dRange := DateRange{timeOnTheFly(2010, 1, 1),
 		timeOnTheFly(2012, 5, 3)}
 	candles, err := at.GetCandles("SPY", "D", dRange)
@@ -379,7 +379,7 @@ func TestJsonStorage_updateDailyCandles(t *testing.T) {
 	testDir := "./test_data/json_storage"
 	os.RemoveAll(testDir)
 
-	at := NewActiveTick(0, "207.154.204.20", 3)
+	at := mockActiveTick()
 	createDirIfNotExists(testDir)
 
 	loc, err := time.LoadLocation("America/New_York")
@@ -436,7 +436,7 @@ func TestJsonStorage_updateTicks(t *testing.T) {
 	testDir := "./test_data/json_storage"
 	os.RemoveAll(testDir)
 
-	at := NewActiveTick(0, "207.154.204.20", 3)
+	at := mockActiveTick()
 	createDirIfNotExists(testDir)
 
 	loc, err := time.LoadLocation("America/New_York")
@@ -590,7 +590,7 @@ func TestJsonStorage_GetStoredTicks(t *testing.T) {
 	testDir := "./test_data/json_storage"
 	os.RemoveAll(testDir)
 
-	at := NewActiveTick(0, "207.154.204.20", 3)
+	at := mockActiveTick()
 	createDirIfNotExists(testDir)
 
 	loc, err := time.LoadLocation("America/New_York")
@@ -602,7 +602,7 @@ func TestJsonStorage_GetStoredTicks(t *testing.T) {
 	endTime := TimeOfDay{11, 10, 0}
 
 	storage := JsonStorage{
-		5,
+		2,
 		testDir,
 		at,
 		loc,
@@ -630,26 +630,56 @@ func TestJsonStorage_GetStoredTicks(t *testing.T) {
 
 	ticks, err := storage.GetStoredTicks("GJH", DateRange{start, end}, true, true)
 
-	if err!=nil{
+	if err != nil {
 		t.Fatal(err)
 	}
 
 	datesFound := 0
-	for i, t := range ticks{
-		if i==0{
+	for i, t := range ticks {
+		if i == 0 {
 			continue
 		}
 
-		if t.Datetime.Weekday()!= ticks[i-1].Datetime.Weekday(){
+		if t.Datetime.Weekday() != ticks[i-1].Datetime.Weekday() {
 			datesFound++
 		}
 	}
-
-	fmt.Println(ticks[len(ticks)-1].Datetime)
 
 	sorted := sort.SliceIsSorted(ticks, func(i, j int) bool {
 		return ticks[i].Datetime.Unix() < ticks[j].Datetime.Unix()
 	})
 
 	assert.True(t, sorted)
+	assert.Equal(t, 10, datesFound)
+
+	d := start
+	for {
+		rng := DateRange{
+			From: time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, time.UTC),
+			To:   time.Date(d.Year(), d.Month(), d.Day(), 23, 59, 59, 0, time.UTC),
+		}
+		if d.Weekday() == 6 || d.Weekday() == 0 {
+			d = d.AddDate(0, 0, 1)
+			if d.After(end) {
+				break
+			}
+			continue
+		}
+
+		ticks, err := storage.GetStoredTicks("GJH", rng, true, true)
+
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		for _, t_ := range ticks {
+			assert.Equal(t, t_.Datetime.Weekday(), d.Weekday())
+		}
+
+		d = d.AddDate(0, 0, 1)
+		if d.After(end) {
+			break
+		}
+
+	}
 }

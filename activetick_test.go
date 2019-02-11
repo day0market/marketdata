@@ -12,7 +12,7 @@ import (
 )
 
 func mockActiveTick() *ActiveTick {
-	at := NewActiveTick(84, "207.154.204.20", 2)
+	at := NewActiveTick(5000, "127.0.0.1", 2)
 	return &at
 }
 
@@ -160,7 +160,7 @@ func TestActiveTick_GetTicks(t *testing.T) {
 	ticks, err := at.GetTicks(symbol, dRange, true, true)
 
 	sorted := sort.SliceIsSorted(ticks, func(i, j int) bool {
-		return ticks[i].Datetime.Unix() > ticks[j].Datetime.Unix()
+		return ticks[i].Datetime.Unix() < ticks[j].Datetime.Unix()
 	})
 
 	assert.True(t, sorted)

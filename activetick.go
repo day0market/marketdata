@@ -329,6 +329,8 @@ func parseTickLine(s []string) (*Tick, error) {
 	tick := Tick{
 		false,
 		true,
+		false,
+		false,
 		last,
 		lastSize,
 		lastExch,
@@ -383,6 +385,8 @@ func parseQuoteLine(s []string) (*Tick, error) {
 	tick := Tick{
 		true,
 		false,
+		false,
+		false, //Todo
 		-1,
 		-1,
 		"",

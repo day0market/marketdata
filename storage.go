@@ -1,7 +1,6 @@
 package marketdata
 
 import (
-	"time"
 	"fmt"
 )
 
@@ -14,7 +13,7 @@ func (e *ErrParsingStoredCandles) Error() string {
 }
 
 type Storage interface {
-	GetListedDates(TimeFrame string) ([]time.Time, error)
-	GetStoredCandles(TimeFrame string) ([]*Candle, error)
-	GetStoredTicks() ([]*Tick, error)
+	//GetListedDates(TimeFrame string) ([]time.Time, error)
+	GetStoredCandles(symbol string, tf string, dRange DateRange) (*CandleArray, error)
+	GetStoredTicks(symbol string, dRange DateRange, quotes bool, trades bool) (TickArray, error)
 }
