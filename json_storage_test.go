@@ -122,7 +122,7 @@ func TestJsonSymbolMeta_getEmptyDates(t *testing.T) {
 }
 
 func TestJsonSymbolMeta_getEmptyRanges(t *testing.T) {
-	//Todo not passed
+	//TODO not passed
 
 	reqRange := DateRange{
 		timeOnTheFly(2009, 12, 15),

@@ -1,13 +1,13 @@
 package marketdata
 
 import (
-	"time"
-	"strconv"
-	"net/http"
-	"io/ioutil"
-	"strings"
 	"fmt"
 	"github.com/pkg/errors"
+	"io/ioutil"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
 )
 
 const (
@@ -103,7 +103,6 @@ func (a ActiveTick) GetTicks(symbol string, dRange DateRange, quotes bool, trade
 
 	uri := fmt.Sprintf("/tickData?symbol=%v&trades=%v&quotes=%v&beginTime=%v&endTime=%v", symbol, t, q, from, to)
 
-
 	rawData, err := a.getRawData(uri)
 
 	if err != nil {
@@ -155,8 +154,6 @@ func (a ActiveTick) getRawData(uri string) (string, error) {
 
 		return content, err
 	}
-
-	return "", nil
 
 }
 
@@ -247,14 +244,14 @@ func parseToCandlesList(raw string) (CandleArray, error) {
 		}
 
 		candle := Candle{
-			open,
-			high,
-			low,
-			close_,
-			close_,
-			volume,
-			0,
-			datetime,
+			Open:         open,
+			High:         high,
+			Low:          low,
+			Close:        close_,
+			AdjClose:     close_,
+			Volume:       volume,
+			OpenInterest: 0,
+			Datetime:     datetime,
 		}
 
 		candles = append(candles, &candle)
@@ -296,6 +293,7 @@ func parseToTQ(raw string) (TickArray, error) {
 			if err != nil {
 				return nil, err
 			}
+
 			ticks = append(ticks, tq)
 			continue
 		}
@@ -327,25 +325,24 @@ func parseTickLine(s []string) (*Tick, error) {
 	lastExch, cond1, cond2, cond3, cond4 := s[4], s[5], s[6], s[7], s[8]
 
 	tick := Tick{
-		false,
-		true,
-		false,
-		false,
-		last,
-		lastSize,
-		lastExch,
-		*datetime,
-		"",
-		"",
-		-1,
-		-1,
-		-1,
-		-1,
-		"",
-		cond1,
-		cond2,
-		cond3,
-		cond4,
+		Symbol:    "",
+		IsOpening: false,
+		IsClosing: false,
+		LastPrice: last,
+		LastSize:  lastSize,
+		LastExch:  lastExch,
+		Datetime:  *datetime,
+		BidExch:   "",
+		AskExch:   "",
+		BidPrice:  -1,
+		AskPrice:  -1,
+		BidSize:   -1,
+		AskSize:   -1,
+		CondQuote: "",
+		Cond1:     cond1,
+		Cond2:     cond2,
+		Cond3:     cond3,
+		Cond4:     cond4,
 	}
 
 	return &tick, nil
@@ -383,25 +380,24 @@ func parseQuoteLine(s []string) (*Tick, error) {
 	bidExch, askExch, condQ := s[6], s[7], s[8]
 
 	tick := Tick{
-		true,
-		false,
-		false,
-		false, //Todo
-		-1,
-		-1,
-		"",
-		*datetime,
-		bidExch,
-		askExch,
-		bid,
-		ask,
-		bidsize,
-		askSize,
-		condQ,
-		"",
-		"",
-		"",
-		"",
+		Symbol:    "",
+		IsOpening: false,
+		IsClosing: false,
+		LastPrice: -1,
+		LastSize:  -1,
+		LastExch:  "",
+		Datetime:  *datetime,
+		BidExch:   bidExch,
+		AskExch:   askExch,
+		BidPrice:  bid,
+		AskPrice:  ask,
+		BidSize:   bidsize,
+		AskSize:   askSize,
+		CondQuote: condQ,
+		Cond1:     "",
+		Cond2:     "",
+		Cond3:     "",
+		Cond4:     "",
 	}
 
 	return &tick, nil

@@ -1,9 +1,10 @@
 package marketdata
 
 import (
-	"time"
 	"fmt"
+	"math"
 	"sort"
+	"time"
 )
 
 type DateRange struct {
@@ -17,8 +18,7 @@ func (d *DateRange) String() string {
 }
 
 type Tick struct {
-	HasQuote bool
-	HasTrade bool
+	Symbol string
 
 	IsOpening bool
 	IsClosing bool
@@ -43,6 +43,45 @@ type Tick struct {
 	Cond4     string
 }
 
+func (t *Tick) HasQuote() bool {
+	if math.IsNaN(t.AskPrice) || math.IsNaN(t.BidPrice) {
+		return false
+	}
+	if t.AskSize <= 0 || t.BidSize <= 0 {
+		return false
+	}
+
+	if t.AskPrice <= 0 || t.BidPrice <= 0 {
+		return false
+	}
+
+	return true
+}
+
+func (t *Tick) HasTrade() bool {
+	if math.IsNaN(t.LastPrice) || t.LastPrice <= 0 {
+		return false
+	}
+
+	if t.LastSize <= 0 {
+		return false
+	}
+
+	return true
+
+}
+
+func (t *Tick) String() string {
+	if t == nil {
+		return ""
+	}
+	str := fmt.Sprintf("%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v", t.Datetime.Unix(), t.Symbol, t.LastPrice,
+		t.LastSize, t.LastExch, t.BidPrice, t.BidSize, t.BidExch,
+		t.AskPrice, t.AskSize, t.AskExch, t.CondQuote, t.Cond1, t.Cond2, t.Cond3, t.Cond4)
+
+	return str
+}
+
 type Candle struct {
 	Open         float64
 	High         float64
@@ -62,7 +101,7 @@ type TickArray []*Tick
 
 func (t TickArray) Sort() TickArray {
 	sort.SliceStable(t, func(i, j int) bool {
-		return t[i].Datetime.Unix() > t[j].Datetime.Unix()
+		return t[i].Datetime.Unix() < t[j].Datetime.Unix()
 	})
 	return t
 }

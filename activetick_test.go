@@ -139,7 +139,7 @@ func TestActiveTick_getResponse(t *testing.T) {
 	assert.Equal(t, &expectedError, err)
 	assert.Equal(t, resp, "")
 
-	url = "http://207.154.204.20/optionChain?symbol=MSFT"
+	url = "http://localhost:5000/optionChain?symbol=MSFT"
 	resp, err = getResponse(url)
 
 	assert.Equal(t, nil, err)
@@ -169,13 +169,13 @@ func TestActiveTick_GetTicks(t *testing.T) {
 	assert.True(t, len(ticks) > 0)
 
 	for _, tk := range ticks {
-		if tk.HasQuote {
+		if tk.HasQuote() {
 			assert.True(t, tk.LastPrice == -1)
 			assert.False(t, tk.BidPrice == -1)
 			assert.False(t, tk.AskPrice == -1)
 			continue
 		}
-		if tk.HasTrade {
+		if tk.HasTrade() {
 			assert.False(t, tk.LastPrice == -1)
 			assert.True(t, tk.BidPrice == -1)
 			assert.True(t, tk.AskPrice == -1)
