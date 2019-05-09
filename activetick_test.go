@@ -12,7 +12,7 @@ import (
 )
 
 func mockActiveTick() *ActiveTick {
-	at := NewActiveTick(5000, "127.0.0.1", 2)
+	at := NewActiveTick(5000, "127.0.0.1", 2, "")
 	return &at
 }
 
@@ -78,6 +78,7 @@ func TestActiveTick_GetCandles_Day(t *testing.T) {
 
 	//20181101000000,271.600000,273.730000,270.380000,273.370000,89496311
 	expectedCandle := Candle{
+		"", //TODO
 		271.60,
 		273.73,
 		270.38,
@@ -117,6 +118,7 @@ func TestActiveTick_GetCandles_Intraday(t *testing.T) {
 
 	//20181101093000,271.600000,272.180000,270.780000,271.290000,12164925
 	expectedCandle := Candle{
+		"", //TODO
 		271.60,
 		272.18,
 		270.78,

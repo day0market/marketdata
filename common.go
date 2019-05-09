@@ -14,11 +14,9 @@ func fileExists(path string) bool {
 
 func createDirIfNotExists(dirPath string) error {
 	if _, err := os.Stat(dirPath); os.IsNotExist(err) {
-
 		err := os.MkdirAll(dirPath, os.ModePerm)
 		return err
 	}
-
 	return nil
 }
 

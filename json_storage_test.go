@@ -298,7 +298,7 @@ func TestJsonStorage_readCandlesFromFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	assert.True(t, len(*candles) > 1)
+	assert.True(t, len(candles) > 1)
 
 }
 
@@ -370,7 +370,7 @@ func TestJsonStorage_saveAndLoadCandles(t *testing.T) {
 	}
 
 	for i, v := range candles {
-		assert.Equal(t, *v, *(*loadedCandles)[i])
+		assert.Equal(t, *v, *loadedCandles[i])
 	}
 
 }
@@ -428,7 +428,7 @@ func TestJsonStorage_updateDailyCandles(t *testing.T) {
 	}
 
 	for i, v := range datasourceCandles {
-		assert.Equal(t, *(*candles)[i], *v)
+		assert.Equal(t, *candles[i], *v)
 	}
 }
 

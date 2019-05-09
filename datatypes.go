@@ -71,6 +71,13 @@ func (t *Tick) HasTrade() bool {
 
 }
 
+func (t *Tick) IsValid() bool{
+	if !t.HasQuote() && !t.HasTrade() {
+		return false
+	}
+	return true
+}
+
 func (t *Tick) String() string {
 	if t == nil {
 		return ""
@@ -83,6 +90,7 @@ func (t *Tick) String() string {
 }
 
 type Candle struct {
+	Symbol       string
 	Open         float64
 	High         float64
 	Low          float64
@@ -93,15 +101,28 @@ type Candle struct {
 	Datetime     time.Time
 }
 
+func (c *Candle) String() string {
+	str := fmt.Sprintf("%v,%v,%v,%v,%v,%v,%v,%v,%v", c.Datetime.Unix(), c.Symbol,  c.Open, c.High, c.Low, c.Close,
+		c.AdjClose, c.Volume, c.OpenInterest)
+	return str
+}
+
 type QuoteSnapshot struct {
 }
 
 type CandleArray []*Candle
-type TickArray []*Tick
 
-func (t TickArray) Sort() TickArray {
+func (t CandleArray) Sort() {
 	sort.SliceStable(t, func(i, j int) bool {
 		return t[i].Datetime.Unix() < t[j].Datetime.Unix()
 	})
-	return t
+}
+
+type TickArray []*Tick
+
+func (t TickArray) Sort() {
+	sort.SliceStable(t, func(i, j int) bool {
+		return t[i].Datetime.Unix() < t[j].Datetime.Unix()
+	})
+
 }

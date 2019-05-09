@@ -19,19 +19,21 @@ func convertTimeToActiveTickFormat(t time.Time) string {
 }
 
 type ActiveTick struct {
-	tries   uint8
-	baseurl string
+	tries         uint8
+	baseurl       string
+	symbol_prefix string
 }
 
-func NewActiveTick(port uint16, host string, tries uint8) ActiveTick {
+func NewActiveTick(port uint16, host string, tries uint8, symbol_prefix string) ActiveTick {
 	baseurl := "http://" + host
 	if port != 0 && port != 84 {
 		baseurl += ":" + strconv.Itoa(int(port))
 	}
 
 	at := ActiveTick{
-		tries,
-		baseurl,
+		tries:         tries,
+		baseurl:       baseurl,
+		symbol_prefix: symbol_prefix,
 	}
 
 	return at
@@ -48,10 +50,10 @@ func (a ActiveTick) GetCandles(symbol string, timeFrame string, dRange DateRange
 
 	case "D":
 		uri = fmt.Sprintf("/barData?symbol=%v&historyType=1&beginTime=%v&endTime=%v",
-			strings.ToUpper(symbol), from, to)
+			a.symbol_prefix+strings.ToUpper(symbol), from, to)
 	case "W":
 		uri = fmt.Sprintf("/barData?symbol=%v&historyType=2&beginTime=%v&endTime=%v",
-			strings.ToUpper(symbol), from, to)
+			a.symbol_prefix+strings.ToUpper(symbol), from, to)
 
 	default:
 		mins, err := strconv.Atoi(timeFrame)
@@ -62,7 +64,7 @@ func (a ActiveTick) GetCandles(symbol string, timeFrame string, dRange DateRange
 			return nil, errors.New("Intraday minutes should be From 1 To 60")
 		}
 		uri = fmt.Sprintf("/barData?symbol=%v&historyType=0&intradayMinutes=%v&beginTime=%v&endTime=%v",
-			strings.ToUpper(symbol), timeFrame, from, to)
+			a.symbol_prefix+strings.ToUpper(symbol), timeFrame, from, to)
 
 	}
 
@@ -72,7 +74,7 @@ func (a ActiveTick) GetCandles(symbol string, timeFrame string, dRange DateRange
 		return nil, err
 	}
 
-	candles, err := parseToCandlesList(rawData)
+	candles, err := parseToCandlesList(rawData, symbol)
 
 	return candles, err
 }
@@ -101,7 +103,8 @@ func (a ActiveTick) GetTicks(symbol string, dRange DateRange, quotes bool, trade
 	from := convertTimeToActiveTickFormat(dRange.From)
 	to := convertTimeToActiveTickFormat(dRange.To)
 
-	uri := fmt.Sprintf("/tickData?symbol=%v&trades=%v&quotes=%v&beginTime=%v&endTime=%v", symbol, t, q, from, to)
+	uri := fmt.Sprintf("/tickData?symbol=%v&trades=%v&quotes=%v&beginTime=%v&endTime=%v",
+		a.symbol_prefix+symbol, t, q, from, to)
 
 	rawData, err := a.getRawData(uri)
 
@@ -191,7 +194,7 @@ func getResponse(url string) (string, error) {
 
 }
 
-func parseToCandlesList(raw string) (CandleArray, error) {
+func parseToCandlesList(raw string, symbol string) (CandleArray, error) {
 	if raw == "" {
 		return nil, &ErrNothingToParse{}
 	}
@@ -244,6 +247,7 @@ func parseToCandlesList(raw string) (CandleArray, error) {
 		}
 
 		candle := Candle{
+			Symbol: symbol,
 			Open:         open,
 			High:         high,
 			Low:          low,

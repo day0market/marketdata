@@ -262,7 +262,7 @@ func (p *JsonStorage) createFolders() error {
 
 }
 
-func (p *JsonStorage) GetStoredCandles(symbol string, tf string, dRange DateRange) (*CandleArray, error) {
+func (p *JsonStorage) GetStoredCandles(symbol string, tf string, dRange DateRange) (CandleArray, error) {
 
 	switch tf {
 	case "D":
@@ -274,7 +274,7 @@ func (p *JsonStorage) GetStoredCandles(symbol string, tf string, dRange DateRang
 	default:
 		return nil, errors.New("Not implemented")
 	}
-	return nil, nil
+
 }
 
 func (p *JsonStorage) GetStoredTicks(symbol string, dRange DateRange, quotes bool, trades bool) (TickArray, error) {
@@ -356,8 +356,6 @@ func (p *JsonStorage) UpdateSymbolCandles(params CandlesUpdateParams) error {
 
 	}
 
-	return nil
-
 }
 
 func (p *JsonStorage) saveCandlesToFile(candles *CandleArray, savePath string) error {
@@ -380,7 +378,7 @@ func (p *JsonStorage) saveCandlesToFile(candles *CandleArray, savePath string) e
 	return err
 }
 
-func (*JsonStorage) readCandlesFromFile(pth string) (*CandleArray, error) {
+func (*JsonStorage) readCandlesFromFile(pth string) (CandleArray, error) {
 	if !fileExists(pth) {
 		return nil, &ErrSymbolDataNotFound{"", pth}
 	}
@@ -403,7 +401,7 @@ func (*JsonStorage) readCandlesFromFile(pth string) (*CandleArray, error) {
 		return nil, err
 	}
 
-	return &candles, err
+	return candles, err
 
 }
 
